@@ -1,5 +1,5 @@
 import { Map } from "lucide-react";
-import { PlaceholderPage } from "@/components/layout/placeholder-page";
+import { GlossaryPage } from "@/components/layout/glossary-page";
 
 export const metadata = {
   title: `Mapa de procesos | Ágora`,
@@ -7,12 +7,12 @@ export const metadata = {
 
 export default function Page() {
   return (
-    <PlaceholderPage
+    <GlossaryPage
       icon={Map}
       title="Mapa de procesos"
       description="Vista general de los procesos de Avenida+ agrupados por tipo (estratégicos, operativos, de apoyo) y su interacción."
-      phase="Fase 10"
       sectionLabel="Procesos"
+      conceptIds={["proceso", "procedimiento", "control-operacional"]}
     />
   );
 }

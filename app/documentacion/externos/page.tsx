@@ -1,5 +1,5 @@
 import { ExternalLink } from "lucide-react";
-import { PlaceholderPage } from "@/components/layout/placeholder-page";
+import { GlossaryPage } from "@/components/layout/glossary-page";
 
 export const metadata = {
   title: `Documentos externos | Ágora`,
@@ -7,12 +7,12 @@ export const metadata = {
 
 export default function Page() {
   return (
-    <PlaceholderPage
+    <GlossaryPage
       icon={ExternalLink}
       title="Documentos externos"
       description="Normativas, contratos y documentación de origen externo necesaria para el funcionamiento del SGC."
-      phase="Fase 12"
       sectionLabel="Documentación"
+      conceptIds={["informacion-documentada", "proveedor-externo"]}
     />
   );
 }

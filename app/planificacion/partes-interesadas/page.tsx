@@ -1,5 +1,5 @@
 import { Users } from "lucide-react";
-import { PlaceholderPage } from "@/components/layout/placeholder-page";
+import { GlossaryPage } from "@/components/layout/glossary-page";
 
 export const metadata = {
   title: `Partes interesadas | Ágora`,
@@ -7,12 +7,12 @@ export const metadata = {
 
 export default function Page() {
   return (
-    <PlaceholderPage
+    <GlossaryPage
       icon={Users}
       title="Partes interesadas"
       description="Necesidades y expectativas de bancos, sellers, colaboradores, proveedores y demás partes interesadas, y su relación con riesgos y objetivos."
-      phase="Fase 9"
       sectionLabel="Planificación"
+      conceptIds={["parte-interesada", "contexto-de-la-organizacion", "satisfaccion-del-cliente"]}
     />
   );
 }

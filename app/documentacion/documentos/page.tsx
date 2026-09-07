@@ -1,5 +1,5 @@
 import { FileText } from "lucide-react";
-import { PlaceholderPage } from "@/components/layout/placeholder-page";
+import { GlossaryPage } from "@/components/layout/glossary-page";
 
 export const metadata = {
   title: `Documentos del SGC | Ágora`,
@@ -7,12 +7,12 @@ export const metadata = {
 
 export default function Page() {
   return (
-    <PlaceholderPage
+    <GlossaryPage
       icon={FileText}
       title="Documentos del SGC"
       description="Biblioteca de políticas, procedimientos, formularios, manuales y registros, con estado (Borrador, Vigente, Obsoleto)."
-      phase="Fase 12"
       sectionLabel="Documentación"
+      conceptIds={["informacion-documentada", "politica-de-calidad", "procedimiento"]}
     />
   );
 }

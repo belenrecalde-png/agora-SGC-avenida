@@ -210,13 +210,33 @@ const RECORDS_PLANE_COLUMNS: { name: string; ddl: string }[] = [
   { name: "plane_synced_at", ddl: "ALTER TABLE records ADD COLUMN plane_synced_at TEXT" },
 ];
 
-function ensureRecordsPlaneColumns(db: DatabaseSync) {
+/**
+ * Agrega columnas nuevas a una tabla existente (patrón `ALTER TABLE ... ADD
+ * COLUMN`, idempotente entre reinicios normales). El build de producción con
+ * Turbopack levanta ~20 workers en paralelo que evalúan `migrate()` al mismo
+ * tiempo (procesos separados, no comparten el singleton de `db`) — dos
+ * pueden leer "la columna no existe" antes de que el otro termine su ALTER,
+ * y el segundo choca con `duplicate column name`. Es inofensivo (la columna
+ * ya quedó creada por el otro proceso), así que se ignora puntualmente ese
+ * error y se relanza cualquier otro.
+ */
+function ensureColumns(db: DatabaseSync, table: string, columns: { name: string; ddl: string }[]) {
   const existing = new Set(
-    (db.prepare("PRAGMA table_info(records)").all() as { name: string }[]).map((col) => col.name),
+    (db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[]).map((col) => col.name),
   );
-  for (const column of RECORDS_PLANE_COLUMNS) {
-    if (!existing.has(column.name)) db.exec(column.ddl);
+  for (const column of columns) {
+    if (existing.has(column.name)) continue;
+    try {
+      db.exec(column.ddl);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (!message.includes("duplicate column name")) throw error;
+    }
   }
+}
+
+function ensureRecordsPlaneColumns(db: DatabaseSync) {
+  ensureColumns(db, "records", RECORDS_PLANE_COLUMNS);
 }
 
 // Fase 7: columnas de "gestión completa" — análisis de causa raíz y corrección
@@ -240,12 +260,7 @@ const RECORDS_GESTION_COLUMNS: { name: string; ddl: string }[] = [
 ];
 
 function ensureRecordsGestionColumns(db: DatabaseSync) {
-  const existing = new Set(
-    (db.prepare("PRAGMA table_info(records)").all() as { name: string }[]).map((col) => col.name),
-  );
-  for (const column of RECORDS_GESTION_COLUMNS) {
-    if (!existing.has(column.name)) db.exec(column.ddl);
-  }
+  ensureColumns(db, "records", RECORDS_GESTION_COLUMNS);
 }
 
 const SEED_AREAS: { id: string; name: string; sort_order: number }[] = [

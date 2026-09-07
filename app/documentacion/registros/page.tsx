@@ -1,5 +1,5 @@
 import { FileStack } from "lucide-react";
-import { PlaceholderPage } from "@/components/layout/placeholder-page";
+import { GlossaryPage } from "@/components/layout/glossary-page";
 
 export const metadata = {
   title: `Registros | Ágora`,
@@ -7,12 +7,12 @@ export const metadata = {
 
 export default function Page() {
   return (
-    <PlaceholderPage
+    <GlossaryPage
       icon={FileStack}
       title="Registros"
       description="Evidencias de que algo ocurrió: formularios completados, actas, verificaciones y demás registros del sistema."
-      phase="Fase 12"
       sectionLabel="Documentación"
+      conceptIds={["evidencia", "trazabilidad", "informacion-documentada"]}
     />
   );
 }

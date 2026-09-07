@@ -28,6 +28,18 @@ const IMPLEMENTED = new Set([
   "/configuracion/logs",
   "/gestion-calidad/tickets-plane",
   "/planificacion/riesgos-y-oportunidades",
+  // Excluidas del alcance de Ágora (decisión del usuario, 2026-09-07, ver
+  // claude/progreso-implementacion.md) — usan GlossaryPage, no PlaceholderPage.
+  // No dejar que este generador las vuelva a pisar con un placeholder de "Fase X".
+  "/planificacion/contexto",
+  "/planificacion/partes-interesadas",
+  "/procesos/mapa",
+  "/procesos/fichas",
+  "/documentacion/documentos",
+  "/documentacion/instructivos",
+  "/documentacion/registros",
+  "/documentacion/externos",
+  "/evaluacion/auditorias",
 ]);
 
 function toAppDir(href) {

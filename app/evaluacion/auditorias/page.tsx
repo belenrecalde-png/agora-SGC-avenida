@@ -1,5 +1,5 @@
 import { ShieldCheck } from "lucide-react";
-import { PlaceholderPage } from "@/components/layout/placeholder-page";
+import { GlossaryPage } from "@/components/layout/glossary-page";
 
 export const metadata = {
   title: `Auditorías | Ágora`,
@@ -7,12 +7,12 @@ export const metadata = {
 
 export default function Page() {
   return (
-    <PlaceholderPage
+    <GlossaryPage
       icon={ShieldCheck}
       title="Auditorías"
       description="Programa de auditorías internas, externas, de cliente y de proveedor, con hallazgos que pueden generar NC, OM u observaciones."
-      phase="Fase 13"
       sectionLabel="Evaluación"
+      conceptIds={["auditoria", "auditoria-interna", "hallazgo"]}
     />
   );
 }
