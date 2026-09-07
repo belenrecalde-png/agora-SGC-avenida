@@ -341,9 +341,43 @@ El usuario resolvió el pendiente de arriba explícitamente: *"lo que no va se e
 
 Archivos clave para retomar: `lib/db/client.ts` (esquema), `lib/db/queries.ts` (queries + reexport de `lib/risk-scoring.ts` y `lib/indicator-scoring.ts`), `lib/indicator-scoring.ts`, `lib/actions/objectives.ts`, `lib/actions/indicators.ts`, `components/ui/trend-chart.tsx`, `components/objetivos/`, `components/indicadores/`, `app/planificacion/objetivos-de-calidad/`, `app/evaluacion/indicadores/`.
 
+## Fase 14 — Dashboard Ejecutivo: ✅ Completa (2026-09-07) — cierra el roadmap real de Ágora
+
+**Disparador:** última fase pendiente del roadmap acotado a Fases 1–8, 11 y 14. A diferencia de todas las anteriores, **no hubo que crear ninguna ruta nueva**: la spec no tiene un ítem de sidebar propio para "Dashboard Ejecutivo" — el Home (`app/page.tsx`) ya tenía, desde la Fase 1, una sección "Estado general del SGC" con datos mock marcados explícitamente `Badge` **"Datos de ejemplo — Fase 11/14"**, y "Requieren atención"/"Actividad reciente"/"Mis pendientes" marcados **"Vista previa con datos de ejemplo — se conecta a registros reales en fases posteriores"**. Esta fase es, literalmente, conectar esas secciones a datos reales.
+
+**Adaptación necesaria respecto de la spec:** la spec pensó este dashboard con todos los módulos, incluidos Documentación/Auditorías — hoy excluidos de Ágora. Los KPIs mock de hecho ya referenciaban módulos inexistentes en el portal ("Documentos vigentes", "Auditorías del mes") — se reemplazaron por métricas de lo que sí está construido (Registro SGC, Riesgos, Objetivos, Indicadores).
+
+**Qué se construyó:**
+
+- **`lib/dashboard-data.ts`** (nuevo, Server-only, sin cambios de esquema — todo se calcula en el momento sobre `listRecords`/`listRisks`/`listObjectives`/`listIndicators` ya existentes): `getDashboardStats()` (8 KPIs: registros abiertos/vencidos, NC abiertas, AC abiertas/vencidas, riesgos altos/críticos abiertos, % AC eficaces, objetivos en riesgo/incumplidos, indicadores fuera de tolerancia), `getAttentionItems()` (une registros + riesgos abiertos con vencimiento, ordenados vencidos → prioridad → próximos, tal como pide la spec), `getUpcomingDueItems()` (mismo universo, próximos 7 días — reemplaza "Mis pendientes"), `getRecordsByType()`/`getRecordsByArea()` (para los gráficos de barras), `getMonthlyEvolution()` (creados vs. cerrados por mes, últimos 6 meses), `getRecentActivityFeed()` (resuelve cada fila de `activity_log` contra registro→riesgo→objetivo→indicador, mismo `id` genérico sin FK real desde la Fase 8).
+- **`lib/db/queries.ts`** — una función nueva, `listRecentActivity(limit)`: versión global (sin filtrar por entidad) de `listActivityLog`, para el feed del Home.
+- **`components/ui/bar-chart.tsx`** (nuevo, client) — barras horizontales de un solo hue (la categoría ya está en la etiqueta, no hace falta paleta categórica), siguiendo la skill de dataviz cargada en la sesión de la Fase 11.
+- **`components/ui/trend-chart.tsx`** — generalizado con `actualLabel`/`targetLabel` opcionales (default "Real"/"Meta") para poder reutilizarlo tal cual en "Evolución mensual" (Creados/Cerrados) sin duplicar la lógica de ejes/hover/crosshair construida en la Fase 11.
+- **`components/home/stat-card.tsx`** — `trend`/`lowerIsBetter` pasan a opcionales; no hay forma honesta de calcular "vs. mes anterior" para las 8 métricas sin sobre-construir, así que se omite la fila de tendencia en vez de inventar un número.
+- **`components/home/attention-table.tsx`, `activity-feed.tsx`, `pending-checklist.tsx`** — pasan a recibir los datos por props (ya no importan datos mock). `pending-checklist.tsx` se renombra visualmente a "Vencimientos próximos" (mismo componente).
+- **`app/page.tsx`** — pasa a `force-dynamic` (antes era estático, ahora lee la base en cada request, igual que el resto de las páginas con datos reales); calcula las 8 stat cards y arma la sección "Evolución" (por tipo / por área / evolución mensual) debajo de "Estado general del SGC". Se sacaron los dos `Badge` "Datos de ejemplo".
+- **`lib/mock-dashboard.ts`** — eliminado (ya no lo usa nadie).
+
+**Recorte deliberado, documentado:** de la lista larga de gráficos de la spec (por tipo, área, proceso, evolución mensual, estado, prioridad, causas raíz, reincidencias, cumplimiento por área) se construyeron 3: por tipo, por área, evolución mensual. El resto queda pendiente si el usuario lo pide. Sin autenticación real (`lib/mock-user.ts` sigue siendo placeholder), "Actividad reciente" no puede mostrar quién hizo cada acción (`activity_log` nunca guardó un actor, en ninguna fase) — muestra el evento + la entidad + cuándo, sin nombre de persona.
+
+**Bug real encontrado y corregido durante la verificación visual (no lo hubiera detectado `tsc`/`lint`/`build`):** en "Vencimientos próximos" (la columna más angosta del Home, un tercio de un grid de 4), el layout de una sola fila (ícono + título flexible + fecha a la derecha) que funcionaba bien con los strings cortos del mock ("16 sep.") se rompía visualmente con los strings más largos y descriptivos de los datos reales ("En 5 días (2026-09-12)") — el texto de la fecha quedaba superpuesto arriba del título en vez de al costado, porque la columna flexible se comprimía a casi 0 de ancho. **Corregido** rediseñando el ítem como dos líneas apiladas (título truncado en una línea, código · tipo · vencimiento corto en la siguiente) en vez de dos columnas lado a lado — confirmado visualmente con Playwright antes y después del fix.
+
+**Verificado de punta a punta con Playwright contra un build de producción** (puerto 3001, mismo criterio de no tocar el 3000): se cargaron 2 NC (una vencida, una por vencer), 2 AC (una abierta, una cerrada y eficaz), 1 riesgo crítico con vencimiento próximo, 1 objetivo en riesgo, 1 indicador fuera de tolerancia → el Home mostró las 8 stat cards con números reales (no en cero) → "Requieren atención" puso la NC vencida primero → "Vencimientos próximos" mostró los ítems dentro de los 7 días → "Actividad reciente" mostró eventos reales vinculados a sus entidades → los 3 gráficos (por tipo, por área, evolución mensual) renderizaron correctamente → sin errores de consola. `tsc --noEmit`, `npm run lint` y `npm run build` (77 rutas — bajó de 90 porque `/` pasó de estático a dinámico, no cuenta como ruta nueva en el listado de Turbopack) pasan sin errores. Entorno de prueba limpiado al terminar.
+
+## Roadmap real de Ágora: completo (2026-09-07)
+
+Con la Fase 14 cerrada, quedaron completas todas las fases que el usuario confirmó que van en el portal: **Fases 1–8, 11 y 14**. Fases 9, 10, 12 y 13 quedaron deliberadamente excluidas (gestión interna de Calidad, no contenido para toda la empresa — ver la sección de la Fase 9 más arriba), con sus ítems de sidebar reemplazados por un glosario educativo en vez de un placeholder vacío.
+
+**Lo que sigue, si el usuario lo pide (no hay más fases "obligatorias" del roadmap original):**
+
+- Autenticación/roles real (viene señalado como pendiente desde la Fase 3) — hoy condiciona varias decisiones de diseño (no hay "Mis pendientes" por usuario, no hay actor en el historial, nada está técnicamente restringido a Calidad).
+- Los recortes deliberados de cada fase (asistente de riesgos, matriz configurable desde Configuración, más gráficos del dashboard, etc. — cada uno documentado en su sección correspondiente de este archivo).
+- Subir el código a un repositorio remoto (GitHub u otro) — sigue pendiente desde la sección de infraestructura.
+- Los puntos de integración Plane/Apps Script que quedaron abiertos (ver más abajo).
+
 ## Próxima fase a implementar
 
-1. **Fase 14 — Dashboard Ejecutivo** (KPIs, gráficos, vencimientos, tendencias, eficacia, reincidencias), la última fase pendiente del roadmap real de Ágora — puede apoyarse en `TrendChart` y en los datos de Objetivos/Indicadores/Riesgos/Registro SGC ya construidos.
+1. Confirmar con el usuario si el roadmap de Ágora queda cerrado acá, o si quiere retomar alguno de los recortes deliberados / la autenticación real / el repositorio remoto.
 2. Probar `apps-script/plane-integracion-sgc.gs` en producción por un tiempo (ya confirmado funcionando, pero sin observar todavía corridas automáticas repetidas de los triggers).
 3. Decidir si el portal Ágora (Fase 3/4, base SQLite propia) debe además hablar directo por HTTP con `doGet`/`doPost` de `Codigo_final.gs` para que un reporte cargado en el portal también aparezca en el Apps Script real — hoy son dos integraciones con Plane paralelas e independientes (portal↔Plane por un lado, Apps Script↔Plane por otro) que no se cruzan entre sí todavía.
 4. Si el usuario lo pide: sumar a `Index_final.html` la lectura de `plane_tracking` para mostrar el estado del ticket de Plane dentro de "Reg. Gestión AV".

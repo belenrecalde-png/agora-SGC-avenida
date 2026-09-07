@@ -11,17 +11,33 @@ import {
   FolderOpen,
   Sparkles,
   HelpCircle,
+  AlertTriangle,
+  CheckCircle2,
+  ShieldAlert,
+  Award,
+  LineChart,
 } from "lucide-react";
 import { Hero } from "@/components/home/hero";
 import { QuickAccessCard, type QuickAccessTone } from "@/components/home/quick-access-card";
-import { StatCard } from "@/components/home/stat-card";
+import { StatCard, type StatCardData } from "@/components/home/stat-card";
 import { AttentionTable } from "@/components/home/attention-table";
 import { ActivityFeed } from "@/components/home/activity-feed";
 import { PendingChecklist } from "@/components/home/pending-checklist";
 import { LinkButton } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { ESTADO_GENERAL } from "@/lib/mock-dashboard";
+import { BarChart } from "@/components/ui/bar-chart";
+import { TrendChart } from "@/components/ui/trend-chart";
+import {
+  getAttentionItems,
+  getDashboardStats,
+  getMonthlyEvolution,
+  getRecentActivityFeed,
+  getRecordsByArea,
+  getRecordsByType,
+  getUpcomingDueItems,
+} from "@/lib/dashboard-data";
+
+export const dynamic = "force-dynamic";
 
 const QUICK_ACCESS: {
   href: string;
@@ -103,6 +119,25 @@ const QUICK_ACCESS: {
 ];
 
 export default function Home() {
+  const stats = getDashboardStats();
+  const attentionItems = getAttentionItems();
+  const upcomingItems = getUpcomingDueItems();
+  const activityItems = getRecentActivityFeed();
+  const recordsByType = getRecordsByType();
+  const recordsByArea = getRecordsByArea();
+  const monthlyEvolution = getMonthlyEvolution();
+
+  const statCards: StatCardData[] = [
+    { label: "Registros abiertos", value: String(stats.registrosAbiertos), icon: ClipboardList, tone: "blue" },
+    { label: "Registros vencidos", value: String(stats.registrosVencidos), icon: AlertTriangle, tone: "amber" },
+    { label: "NC abiertas", value: String(stats.ncAbiertas), icon: AlertTriangle, tone: "amber" },
+    { label: "AC abiertas/vencidas", value: String(stats.acAbiertasVencidas), icon: CheckCircle2, tone: "violet" },
+    { label: "Riesgos altos/críticos abiertos", value: String(stats.riesgosAltosAbiertos), icon: ShieldAlert, tone: "violet" },
+    { label: "AC eficaces", value: stats.acEficaces === null ? "Sin datos" : `${stats.acEficaces}%`, icon: CheckCircle2, tone: "green" },
+    { label: "Objetivos en riesgo/incumplidos", value: String(stats.objetivosEnRiesgoOIncumplidos), icon: Award, tone: "amber" },
+    { label: "Indicadores fuera de tolerancia", value: String(stats.indicadoresFueraDeTolerancia), icon: LineChart, tone: "blue" },
+  ];
+
   return (
     <div className="mx-auto flex max-w-7xl flex-col gap-10 pb-12">
       <Hero />
@@ -117,27 +152,39 @@ export default function Home() {
       </section>
 
       <section className="flex flex-col gap-4">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-lg font-semibold text-avenida-black">Estado general del SGC</h2>
-          <Badge tone="gray">Datos de ejemplo — Fase 11/14</Badge>
-        </div>
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
-          {ESTADO_GENERAL.map((stat) => (
+        <h2 className="text-lg font-semibold text-avenida-black">Estado general del SGC</h2>
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+          {statCards.map((stat) => (
             <StatCard key={stat.label} data={stat} />
           ))}
         </div>
       </section>
 
       <section className="flex flex-col gap-4">
-        <Badge tone="gray" className="w-fit">
-          Vista previa con datos de ejemplo — se conecta a registros reales en fases posteriores
-        </Badge>
+        <h2 className="text-lg font-semibold text-avenida-black">Evolución</h2>
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+          <Card className="flex flex-col gap-3 p-5">
+            <h3 className="text-sm font-semibold text-avenida-black">Registros por tipo</h3>
+            <BarChart data={recordsByType} />
+          </Card>
+          <Card className="flex flex-col gap-3 p-5">
+            <h3 className="text-sm font-semibold text-avenida-black">Registros por área</h3>
+            <BarChart data={recordsByArea} />
+          </Card>
+          <Card className="flex flex-col gap-3 p-5">
+            <h3 className="text-sm font-semibold text-avenida-black">Evolución mensual</h3>
+            <TrendChart points={monthlyEvolution} actualLabel="Creados" targetLabel="Cerrados" />
+          </Card>
+        </div>
+      </section>
+
+      <section className="flex flex-col gap-4">
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-4">
           <div className="lg:col-span-2">
-            <AttentionTable />
+            <AttentionTable items={attentionItems} />
           </div>
-          <ActivityFeed />
-          <PendingChecklist />
+          <ActivityFeed items={activityItems} />
+          <PendingChecklist items={upcomingItems} />
         </div>
       </section>
 

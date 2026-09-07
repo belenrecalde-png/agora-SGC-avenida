@@ -34,7 +34,19 @@ function buildSegments(points: { x: number; y: number | null }[]): string[] {
   return segments;
 }
 
-export function TrendChart({ points, unit }: { points: TrendPoint[]; unit?: string }) {
+export function TrendChart({
+  points,
+  unit,
+  actualLabel = "Real",
+  targetLabel = "Meta",
+}: {
+  points: TrendPoint[];
+  unit?: string;
+  /** Etiqueta de la línea sólida — default "Real" (Objetivos/Indicadores). */
+  actualLabel?: string;
+  /** Etiqueta de la línea de referencia punteada — default "Meta". */
+  targetLabel?: string;
+}) {
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
 
   const { xScale, yScale, min, max, hasData } = useMemo(() => {
@@ -86,14 +98,14 @@ export function TrendChart({ points, unit }: { points: TrendPoint[]; unit?: stri
       <div className="flex items-center gap-4 text-xs text-muted">
         <span className="flex items-center gap-1.5">
           <span className="inline-block h-0.5 w-4 rounded-full bg-avenida-violet" />
-          Real
+          {actualLabel}
         </span>
         <span className="flex items-center gap-1.5">
           <span
             className="inline-block h-0 w-4 border-t-2 border-dashed"
             style={{ borderColor: "var(--color-border)" }}
           />
-          Meta
+          {targetLabel}
         </span>
       </div>
       <svg
@@ -153,10 +165,10 @@ export function TrendChart({ points, unit }: { points: TrendPoint[]; unit?: stri
         <div className="flex w-fit flex-col gap-0.5 rounded-lg border border-border bg-white px-3 py-2 text-xs shadow-sm">
           <span className="font-semibold text-avenida-black">{hovered.period}</span>
           <span className="text-avenida-violet">
-            Real: {hovered.actual === null ? "sin dato" : `${hovered.actual}${unit ? ` ${unit}` : ""}`}
+            {actualLabel}: {hovered.actual === null ? "sin dato" : `${hovered.actual}${unit ? ` ${unit}` : ""}`}
           </span>
           <span className="text-muted">
-            Meta: {hovered.target === null ? "sin dato" : `${hovered.target}${unit ? ` ${unit}` : ""}`}
+            {targetLabel}: {hovered.target === null ? "sin dato" : `${hovered.target}${unit ? ` ${unit}` : ""}`}
           </span>
         </div>
       )}

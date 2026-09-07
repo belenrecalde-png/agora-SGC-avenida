@@ -433,6 +433,27 @@ export function listActivityLog(recordId: string): ActivityLogEntry[] {
     }));
 }
 
+/**
+ * Feed global de actividad (Fase 14) — a diferencia de `listActivityLog`
+ * (que filtra por una entidad puntual), esta trae las últimas entradas de
+ * cualquier entidad (registros, riesgos, objetivos, indicadores — todos
+ * comparten `activity_log` sin FK real, mismo criterio desde la Fase 8).
+ * `activity_log` no guarda quién hizo la acción (nunca se guardó, en
+ * ninguna fase — no hay auth real), así que no se puede mostrar un actor.
+ */
+export function listRecentActivity(limit = 8): ActivityLogEntry[] {
+  return db
+    .prepare("SELECT * FROM activity_log ORDER BY created_at DESC LIMIT ?")
+    .all(limit)
+    .map((row) => ({
+      id: row.id as string,
+      record_id: row.record_id as string,
+      event: row.event as string,
+      detail: (row.detail as string) ?? null,
+      created_at: row.created_at as string,
+    }));
+}
+
 // ---------- Plane: mapeo de proyectos por área ----------
 
 export function listPlaneProjectMappings(): PlaneProjectMapping[] {
