@@ -13,7 +13,18 @@
  * Si más adelante hace falta Postgres (por ejemplo, para correr con múltiples
  * instancias del servidor a la vez), toda el acceso a datos pasa por
  * `lib/db/queries.ts` — ahí es donde habría que migrar, sin tocar las páginas.
+ *
+ * `import "server-only"` (agregado en la fase de autenticación): este módulo
+ * abre `node:sqlite`, que no existe en el navegador. Sin esta guardia, un
+ * componente "use client" que importa un *valor* (no un tipo) de
+ * `lib/db/queries.ts` — que importa este archivo — rompe el build de
+ * Turbopack con un panic críptico (`the chunking context ... does not
+ * support external modules`, ver Fases 8 y 11 en
+ * `claude/progreso-implementacion.md`). Con esta guardia, el mismo error da
+ * un mensaje claro de "server-only" en el momento de compilar en vez de un
+ * panic interno de Turbopack.
  */
+import "server-only";
 import { DatabaseSync } from "node:sqlite";
 import path from "node:path";
 import fs from "node:fs";
@@ -266,6 +277,24 @@ CREATE TABLE IF NOT EXISTS sgc_indicator_results (
   notes TEXT,
   created_at TEXT NOT NULL
 );
+
+-- Autenticación: usuarios reales del portal (login con Google Workspace).
+-- "role" es texto libre a propósito (no CHECK) para no tener que migrar el
+-- esquema si el usuario pide un rol nuevo más adelante — los valores válidos
+-- de hoy (admin | calidad | responsable_area | colaborador | consulta) viven
+-- en código (lib/auth/roles.ts), no en la base.
+CREATE TABLE IF NOT EXISTS users (
+  id TEXT PRIMARY KEY,
+  email TEXT NOT NULL UNIQUE,
+  name TEXT NOT NULL,
+  picture TEXT,
+  role TEXT NOT NULL DEFAULT 'colaborador',
+  area_id TEXT,
+  active INTEGER NOT NULL DEFAULT 1,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  last_login_at TEXT
+);
 `;
 
 // Fase 4: columnas nuevas en `records` para guardar la relación con el work item
@@ -334,6 +363,19 @@ function ensureRecordsGestionColumns(db: DatabaseSync) {
   ensureColumns(db, "records", RECORDS_GESTION_COLUMNS);
 }
 
+// Autenticación: quién hizo cada acción. `activity_log` existe desde la Fase
+// 3 sin esta columna — se agrega ahora, no antes, porque hasta esta fase no
+// existía ningún concepto de "quién" (ver `addActivityLog` en queries.ts,
+// que las completa sola leyendo la sesión actual).
+const ACTIVITY_LOG_ACTOR_COLUMNS: { name: string; ddl: string }[] = [
+  { name: "actor_email", ddl: "ALTER TABLE activity_log ADD COLUMN actor_email TEXT" },
+  { name: "actor_name", ddl: "ALTER TABLE activity_log ADD COLUMN actor_name TEXT" },
+];
+
+function ensureActivityLogActorColumns(db: DatabaseSync) {
+  ensureColumns(db, "activity_log", ACTIVITY_LOG_ACTOR_COLUMNS);
+}
+
 const SEED_AREAS: { id: string; name: string; sort_order: number }[] = [
   { id: "operaciones", name: "Operaciones", sort_order: 1 },
   { id: "comercial", name: "Comercial", sort_order: 2 },
@@ -366,6 +408,7 @@ function migrate(db: DatabaseSync) {
   db.exec(SCHEMA);
   ensureRecordsPlaneColumns(db);
   ensureRecordsGestionColumns(db);
+  ensureActivityLogActorColumns(db);
 }
 
 function seed(db: DatabaseSync) {

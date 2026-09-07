@@ -3,7 +3,7 @@
 import { useState, type ReactNode } from "react";
 import { usePathname } from "next/navigation";
 import { Sidebar, MobileSidebar } from "./sidebar";
-import { Header } from "./header";
+import { Header, type HeaderUser } from "./header";
 import type { Crumb } from "./breadcrumbs";
 import { findNavItemByHref, findSectionByHref } from "@/lib/nav-config";
 import { getConceptById } from "@/lib/concepts-data";
@@ -33,9 +33,16 @@ function buildCrumbs(pathname: string): Crumb[] {
   return crumbs;
 }
 
-export function AppShell({ children }: { children: ReactNode }) {
+export function AppShell({ children, user }: { children: ReactNode; user: HeaderUser | null }) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
+
+  // /login tiene su propia pantalla completa, sin sidebar/header — no tiene
+  // sentido mostrar el shell del portal antes de que la persona se loguee.
+  if (pathname === "/login") {
+    return <>{children}</>;
+  }
+
   const crumbs = buildCrumbs(pathname);
 
   return (
@@ -44,7 +51,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       <MobileSidebar open={mobileOpen} onClose={() => setMobileOpen(false)} />
 
       <div className="flex min-h-screen flex-1 flex-col">
-        <Header crumbs={crumbs} onOpenMobileMenu={() => setMobileOpen(true)} />
+        <Header crumbs={crumbs} onOpenMobileMenu={() => setMobileOpen(true)} user={user} />
         <main className="flex-1 px-4 py-6 sm:px-6 lg:px-8">{children}</main>
       </div>
     </div>

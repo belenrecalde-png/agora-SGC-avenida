@@ -5,10 +5,11 @@ import { cn } from "@/lib/utils";
 import type { AttentionItem } from "@/lib/dashboard-data";
 
 /**
- * Reemplaza "Mis pendientes" (Fase 1) — sin autenticación real no hay forma
- * honesta de filtrar por usuario (ver `lib/mock-user.ts`, todavía un
- * placeholder), así que muestra vencimientos de los próximos 7 días para
- * todo el portal en vez de inventar una asignación por persona.
+ * Reemplaza "Mis pendientes" (Fase 1). Ahora sí hay autenticación real
+ * (ver `lib/auth/`), pero los registros/riesgos no tienen un campo
+ * "asignado a" — solo "reportado por" (texto libre) — así que todavía no
+ * hay una forma honesta de filtrar por usuario. Muestra vencimientos de los
+ * próximos 7 días para todo el portal en vez de inventar una asignación.
  */
 function shortDue(daysOverdue: number | null): string {
   if (daysOverdue === null) return "";

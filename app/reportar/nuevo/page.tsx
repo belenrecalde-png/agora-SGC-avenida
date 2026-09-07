@@ -4,6 +4,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { listAreas, listRecordTypes } from "@/lib/db/queries";
 import { createReportAction } from "@/lib/actions/reports";
+import { getCurrentUser } from "@/lib/auth/dal";
 
 export const dynamic = "force-dynamic";
 
@@ -24,6 +25,7 @@ export default async function NuevoReportePage({
   const types = listRecordTypes({ onlyActive: true });
   const areas = listAreas({ onlyActive: true });
   const defaultType = types.find((t) => t.code === tipo)?.code ?? types[0]?.code;
+  const currentUser = await getCurrentUser();
 
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-6 pb-12">
@@ -134,6 +136,7 @@ export default async function NuevoReportePage({
                 name="reporterName"
                 type="text"
                 required
+                defaultValue={currentUser?.name ?? ""}
                 placeholder="Nombre y apellido"
                 className={FIELD_CLASS}
               />

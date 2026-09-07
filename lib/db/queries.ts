@@ -76,6 +76,8 @@ export type ActivityLogEntry = {
   event: string;
   detail: string | null;
   created_at: string;
+  actor_email: string | null;
+  actor_name: string | null;
 };
 
 // Fase 4 — mapeo área del portal ↔ proyecto de Plane. `plane_project_id` es el
@@ -410,27 +412,58 @@ export function listRecordsWithPlaneTicket(): SgcRecord[] {
 
 // ---------- Historial / trazabilidad ----------
 
+function rowToActivityLogEntry(row: Record<string, unknown>): ActivityLogEntry {
+  return {
+    id: row.id as string,
+    record_id: row.record_id as string,
+    event: row.event as string,
+    detail: (row.detail as string) ?? null,
+    created_at: row.created_at as string,
+    actor_email: (row.actor_email as string) ?? null,
+    actor_name: (row.actor_name as string) ?? null,
+  };
+}
+
+/**
+ * Resuelve el actor actual (best-effort) leyendo la sesión desde
+ * `next/headers` — funciona porque `addActivityLog` solo se llama desde
+ * mutaciones (Server Actions), que siempre corren dentro de un request.
+ * Try/catch defensivo: si algún día se llama fuera de un request (ej. un
+ * script), sigue funcionando igual, solo que sin actor. Se resuelve acá
+ * adentro (no como parámetro) a propósito, para no tener que tocar ninguno
+ * de los ~30 call-sites de `addActivityLog` ya existentes en este archivo.
+ */
+async function resolveCurrentActor(): Promise<{ email: string | null; name: string | null }> {
+  try {
+    const { getSession } = await import("@/lib/auth/session");
+    const session = await getSession();
+    return { email: session?.email ?? null, name: session?.name ?? null };
+  } catch {
+    return { email: null, name: null };
+  }
+}
+
 export function addActivityLog(recordId: string, event: string, detail?: string | null): void {
-  db.prepare("INSERT INTO activity_log (id, record_id, event, detail, created_at) VALUES (?, ?, ?, ?, ?)").run(
-    randomUUID(),
-    recordId,
-    event,
-    detail ?? null,
-    new Date().toISOString(),
-  );
+  const id = randomUUID();
+  const createdAt = new Date().toISOString();
+  db.prepare(
+    "INSERT INTO activity_log (id, record_id, event, detail, created_at) VALUES (?, ?, ?, ?, ?)",
+  ).run(id, recordId, event, detail ?? null, createdAt);
+
+  // El UPDATE del actor va aparte y de forma asíncrona (no bloquea el INSERT
+  // de arriba, que es lo que de verdad importa para la trazabilidad) —
+  // `getSession` es async porque `cookies()` lo es en Next 16.
+  resolveCurrentActor().then((actor) => {
+    if (!actor.email && !actor.name) return;
+    db.prepare("UPDATE activity_log SET actor_email = ?, actor_name = ? WHERE id = ?").run(actor.email, actor.name, id);
+  });
 }
 
 export function listActivityLog(recordId: string): ActivityLogEntry[] {
   return db
     .prepare("SELECT * FROM activity_log WHERE record_id = ? ORDER BY created_at ASC")
     .all(recordId)
-    .map((row) => ({
-      id: row.id as string,
-      record_id: row.record_id as string,
-      event: row.event as string,
-      detail: (row.detail as string) ?? null,
-      created_at: row.created_at as string,
-    }));
+    .map(rowToActivityLogEntry);
 }
 
 /**
@@ -438,20 +471,12 @@ export function listActivityLog(recordId: string): ActivityLogEntry[] {
  * (que filtra por una entidad puntual), esta trae las últimas entradas de
  * cualquier entidad (registros, riesgos, objetivos, indicadores — todos
  * comparten `activity_log` sin FK real, mismo criterio desde la Fase 8).
- * `activity_log` no guarda quién hizo la acción (nunca se guardó, en
- * ninguna fase — no hay auth real), así que no se puede mostrar un actor.
  */
 export function listRecentActivity(limit = 8): ActivityLogEntry[] {
   return db
     .prepare("SELECT * FROM activity_log ORDER BY created_at DESC LIMIT ?")
     .all(limit)
-    .map((row) => ({
-      id: row.id as string,
-      record_id: row.record_id as string,
-      event: row.event as string,
-      detail: (row.detail as string) ?? null,
-      created_at: row.created_at as string,
-    }));
+    .map(rowToActivityLogEntry);
 }
 
 // ---------- Plane: mapeo de proyectos por área ----------
@@ -1782,5 +1807,99 @@ export function listIndicatorResults(indicatorId: string): IndicatorResult[] {
     .prepare("SELECT * FROM sgc_indicator_results WHERE indicator_id = ? ORDER BY period ASC")
     .all(indicatorId)
     .map(rowToIndicatorResult);
+}
+
+// ---------- Autenticación: usuarios ----------
+
+export type PortalUser = {
+  id: string;
+  email: string;
+  name: string;
+  picture: string | null;
+  role: string;
+  area_id: string | null;
+  active: boolean;
+  created_at: string;
+  updated_at: string;
+  last_login_at: string | null;
+};
+
+function rowToPortalUser(row: Record<string, unknown>): PortalUser {
+  return {
+    id: row.id as string,
+    email: row.email as string,
+    name: row.name as string,
+    picture: (row.picture as string) ?? null,
+    role: row.role as string,
+    area_id: (row.area_id as string) ?? null,
+    active: toBool(row.active),
+    created_at: row.created_at as string,
+    updated_at: row.updated_at as string,
+    last_login_at: (row.last_login_at as string) ?? null,
+  };
+}
+
+export function getUserByEmail(email: string): PortalUser | undefined {
+  const row = db.prepare("SELECT * FROM users WHERE email = ?").get(email.toLowerCase());
+  return row ? rowToPortalUser(row) : undefined;
+}
+
+export function getUserById(id: string): PortalUser | undefined {
+  const row = db.prepare("SELECT * FROM users WHERE id = ?").get(id);
+  return row ? rowToPortalUser(row) : undefined;
+}
+
+export function listUsers(): PortalUser[] {
+  return db.prepare("SELECT * FROM users ORDER BY created_at ASC").all().map(rowToPortalUser);
+}
+
+/**
+ * Alta o actualización de un usuario a partir de los datos de Google en cada
+ * login. No pisa el rol de un usuario ya existente (salvo que esté en
+ * `ADMIN_EMAILS`, que siempre fuerza `admin` — ver `lib/auth/dal.ts`) — el
+ * rol lo administra un admin a mano desde Configuración → Usuarios, no
+ * Google.
+ */
+export function upsertUserFromGoogle(input: {
+  email: string;
+  name: string;
+  picture: string | null;
+  forceAdmin: boolean;
+}): PortalUser {
+  const email = input.email.toLowerCase();
+  const existing = getUserByEmail(email);
+  const now = new Date().toISOString();
+
+  if (existing) {
+    const role = input.forceAdmin ? "admin" : existing.role;
+    db.prepare(
+      "UPDATE users SET name = ?, picture = ?, role = ?, updated_at = ?, last_login_at = ? WHERE id = ?",
+    ).run(input.name, input.picture, role, now, now, existing.id);
+    return getUserById(existing.id)!;
+  }
+
+  const id = randomUUID();
+  const role = input.forceAdmin ? "admin" : "colaborador";
+  db.prepare(
+    "INSERT INTO users (id, email, name, picture, role, active, created_at, updated_at, last_login_at) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?)",
+  ).run(id, email, input.name, input.picture, role, now, now, now);
+  return getUserById(id)!;
+}
+
+export function updateUserRoleAndArea(userId: string, role: string, areaId: string | null): PortalUser {
+  db.prepare("UPDATE users SET role = ?, area_id = ?, updated_at = ? WHERE id = ?").run(
+    role,
+    areaId,
+    new Date().toISOString(),
+    userId,
+  );
+  return getUserById(userId)!;
+}
+
+export function toggleUserActive(userId: string): void {
+  db.prepare("UPDATE users SET active = CASE active WHEN 1 THEN 0 ELSE 1 END, updated_at = ? WHERE id = ?").run(
+    new Date().toISOString(),
+    userId,
+  );
 }
 
