@@ -136,6 +136,8 @@ Sección "Centro de Conocimiento" (no solo "Glosario ISO"), con categorías: Con
 
 ## 49–54. Procesos, objetivos, indicadores, auditorías, proveedores
 
+**⚠️ El párrafo "Procesos" (siguiente) está excluido de Ágora** — mismo criterio y misma decisión que la Fase 9 (2026-09-07): mapa y ficha de procesos son una herramienta de gestión de Calidad, no contenido operativo para toda la empresa. Objetivos/Indicadores/Auditorías/Proveedores todavía no se revisaron con este criterio — ver `claude/progreso-implementacion.md` antes de construir cualquiera de estas fases.
+
 **Procesos** iniciales: Dirección y planificación estratégica, Diseño y Desarrollo, Implementación e Integración con Clientes, Operación de la Plataforma SaaS, Soporte y Atención al Cliente B2B, Gestión de Proveedores y Terceros, Gestión de la Calidad y Mejora Continua. Áreas: Operaciones, Comercial, Delivery, RRHH, Administración, IT, Producto, Calidad. Ficha de proceso completa: código, nombre, objetivo, alcance, responsable, entradas/actividades/salidas, clientes, proveedores, partes interesadas, indicadores, riesgos, oportunidades, documentos, registros, recursos, requisitos, NC/AC relacionadas, tickets, objetivos relacionados.
 
 **Objetivos de Calidad**: código, objetivo, meta, indicador, unidad, recursos, responsable, fechas, frecuencia, método, resultado actual, cumplimiento, evidencia, observaciones. Estados: Cumplido, En curso, En riesgo, Incumplido. Vista Meta vs Real + histórico mensual.
@@ -211,11 +213,11 @@ Resultado final esperado: un punto único desde el que cualquier colaborador pue
 7. Gestión completa (análisis de causa, corrección, AC, verificación de eficacia, relaciones, evidencias)
 8. Riesgos (matriz, controles, residual, oportunidades)
 9. ~~Contexto (FODA, CAME, partes interesadas, cambio climático)~~ — **excluido de Ágora** (decisión del usuario, 2026-09-07, ver `claude/progreso-implementacion.md`): es análisis estratégico interno de Calidad/Dirección, no contenido para toda la empresa. No se construye en el portal. Lo único de esta fase que sí es público ya existe: el concepto "Política de Calidad" en el Centro de Conocimiento (Fase 2).
-10. Procesos (mapa, ficha, riesgos, indicadores, documentos)
-11. Objetivos e indicadores (metas, resultados, dashboards)
-12. Documentación (documentos, versiones, instructivos, control documental)
-13. Auditorías (programa, auditorías, hallazgos, acciones)
-14. Dashboard Ejecutivo (KPIs, gráficos, vencimientos, tendencias, eficacia, reincidencias)
+10. ~~Procesos (mapa, ficha, riesgos, indicadores, documentos)~~ — **excluido de Ágora** (decisión del usuario, 2026-09-07, mismo criterio que la Fase 9: "esto es de calidad"). El mapa/ficha de procesos es una herramienta de gestión de Calidad, no contenido operativo para cualquier colaborador.
+11. Objetivos e indicadores (metas, resultados, dashboards) — **sí va en Ágora** (confirmado por el usuario, 2026-09-07): cada responsable de área ve y actualiza el resultado de sus propios objetivos. Pendiente de construir.
+12. ~~Documentación (documentos, versiones, instructivos, control documental)~~ — **excluido de Ágora** (decisión del usuario, 2026-09-07): el control documental formal (versiones, aprobación) es gestión de Calidad, a diferencia del contenido más informal ya cubierto por el Centro de Conocimiento (Fase 2).
+13. ~~Auditorías (programa, auditorías, hallazgos, acciones)~~ — **excluido de Ágora** (decisión del usuario, 2026-09-07): el programa de auditorías es de Calidad; los hallazgos que generan NC/OM ya fluyen por el Registro SGC (Fase 3/6/7), sin un módulo aparte.
+14. Dashboard Ejecutivo (KPIs, gráficos, vencimientos, tendencias, eficacia, reincidencias) — **sí va en Ágora** (confirmado por el usuario, 2026-09-07): panel de transparencia visible para toda la empresa. Pendiente de construir.
 
 **Primer paso obligatorio antes de tocar código** (aplica a la Fase 1): revisar el proyecto actual completo — stack, estructura de carpetas, componentes reutilizables, sistema de estilos, base de datos existente, variables de entorno, integraciones existentes, implementación actual de Apps Script si existe — y proponer arquitectura sin romper lo que ya funciona. Recién ahí empezar, exclusivamente, por la Fase 1. No avanzar de fase hasta que la anterior esté funcionando.
 

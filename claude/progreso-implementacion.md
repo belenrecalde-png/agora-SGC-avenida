@@ -286,9 +286,25 @@ Antes de proponer la Fase 10 (Procesos) o cualquier fase siguiente, vale la pena
 
 **Nota sobre autenticación:** esta conversación también dejó en evidencia que, sin autenticación/roles reales (pendiente desde la Fase 3, ver `lib/mock-user.ts`), nada en Ágora está técnicamente restringido a Calidad — es una limitación a tener presente si en el futuro se decide que alguna pantalla sí debe vivir en el portal pero solo visible para el rol Calidad.
 
+## ⚠️ Fase 10 — Procesos: también excluida de Ágora (decisión del usuario, 2026-09-07)
+
+Al proponer Fase 10 (Procesos: mapa, ficha de procesos), el usuario confirmó el mismo criterio que la Fase 9: *"lo mismo, esto es de calidad"*. Mapa/ficha de procesos es una herramienta de gestión de Calidad, no contenido operativo para toda la empresa — se excluye de Ágora por el mismo motivo. Ver el criterio general en la sección de la Fase 9 más arriba.
+
+**Clasificación de las fases que quedaban (11–14), confirmada por el usuario (2026-09-07) vía pregunta directa — el resultado no siempre coincidió con lo que yo había propuesto, ojo:**
+
+- **Fase 11 — Objetivos de Calidad e Indicadores**: usuario confirmó **sí va en Ágora** (yo había propuesto excluirla; el usuario prefirió que cada responsable de área vea y actualice el resultado de sus propios objetivos desde el portal). **Pendiente de construir.**
+- **Fase 12 — Documentación (documentos, instructivos, control documental)**: usuario confirmó **excluida de Ágora** (yo había propuesto incluirla, asumiendo que era igual al Centro de Conocimiento — el usuario la trató distinto: el control documental formal con versiones/aprobación es gestión de Calidad, a diferencia del contenido más informal que ya cubre el Centro de Conocimiento desde la Fase 2).
+- **Fase 13 — Auditorías**: usuario confirmó **excluida de Ágora** (coincidió con lo propuesto). El programa de auditorías es de Calidad; los hallazgos que generan NC/OM ya fluyen por el Registro SGC (Fase 3/6/7), sin un módulo aparte.
+- **Fase 14 — Dashboard Ejecutivo**: usuario confirmó **sí va en Ágora** (yo había propuesto excluirla; el usuario lo quiere como panel de transparencia visible para toda la empresa, no solo para Calidad/Dirección). **Pendiente de construir.**
+
+**Roadmap final de Ágora** (fases "profundas" que quedan pendientes, en el orden de la spec): **Fase 11 (Objetivos e Indicadores)** → **Fase 14 (Dashboard Ejecutivo)**. Fases 9, 10, 12 y 13 quedan fuera del alcance del portal — su destino (SGC interno en Apps Script/Sheets, u otro) no se definió, no se preguntó.
+
+**Pendiente sin resolver:** qué hacer con los ítems del sidebar que corresponden a fases excluidas (Contexto, Partes interesadas, Procesos → Mapa/Fichas, Documentación → Documentos/Instructivos/Registros/Externos, Auditorías) — hoy siguen siendo placeholders genéricos (`PlaceholderPage`) que dicen "Fase X" sin aclarar que esa fase no se va a construir en el portal. No se preguntó todavía si sacarlos del menú, dejarlos como están, o cambiar el texto del placeholder para que sea honesto sobre que ese contenido vive en el SGC interno de Calidad, no en Ágora.
+
 ## Próxima fase a implementar
 
-1. Preguntarle al usuario cómo seguir: ¿**Fase 10 — Procesos** (mapa, ficha, riesgos, indicadores, documentos) según `claude/spec-sgc-avenida-plus.md`, revisando primero si tiene la misma tensión "Calidad-interno vs. toda la empresa" recién resuelta para la Fase 9? ¿O priorizar primero autenticación/roles, ahora que quedó en evidencia que nada está realmente restringido?
+1. Definir con el usuario cuál de las dos fases que quedan (11 — Objetivos e Indicadores, o 14 — Dashboard Ejecutivo) se construye primero.
+2. Resolver qué hacer con los ítems de menú de las fases excluidas (ver "Pendiente sin resolver" arriba).
 2. Probar `apps-script/plane-integracion-sgc.gs` en producción por un tiempo (ya confirmado funcionando, pero sin observar todavía corridas automáticas repetidas de los triggers).
 3. Decidir si el portal Ágora (Fase 3/4, base SQLite propia) debe además hablar directo por HTTP con `doGet`/`doPost` de `Codigo_final.gs` para que un reporte cargado en el portal también aparezca en el Apps Script real — hoy son dos integraciones con Plane paralelas e independientes (portal↔Plane por un lado, Apps Script↔Plane por otro) que no se cruzan entre sí todavía.
 4. Si el usuario lo pide: sumar a `Index_final.html` la lectura de `plane_tracking` para mostrar el estado del ticket de Plane dentro de "Reg. Gestión AV".
