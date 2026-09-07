@@ -27,8 +27,9 @@ El usuario compartió una referencia visual (mockup de un dashboard llamado "Ág
 ## Estado general
 
 - **Código:** no existía un proyecto previo — se arrancó desde cero (Next.js 16 + React 19 + TypeScript + Tailwind v4), confirmado con el usuario el 2026-09-05.
-- **Repositorio:** todavía no está en GitHub. El código se entregó como .zip por el chat (última versión: `agora-sgc-avenida-plus.zip`, incluye Fases 1–7 completas + este `claude/` de continuidad + `apps-script/reference/` con el código real de referencia). Si el usuario crea un repo, actualizar esta sección con la URL.
+- **Repositorio:** git local inicializado en la máquina del usuario el 2026-09-07 (commit inicial `e7fd66c`, "Initial commit: Ágora — Fases 1-7 completas"), todavía no está en GitHub ni tiene remoto configurado. Si el usuario crea un repo remoto, actualizar esta sección con la URL.
 - **Deploy:** ninguno todavía.
+- **Entorno local confirmado (2026-09-07):** Node v24.20.0 y npm 11.19.0 (por encima del mínimo 22.5 que pide `node:sqlite`). `npm install` corrido sin vulnerabilidades. `npx tsc --noEmit`, `npm run build` (81 rutas generadas) y `npm run lint` verificados sin errores tras el fix de abajo.
 - **Base de datos:** SQLite local vía `node:sqlite` (ver Fase 3). El archivo vive en `data/agora.db`, se crea y semilla solo la primera vez que corre el servidor. No se versiona (está en `.gitignore`).
 - **Plane:** integrado en el código (Fase 4) pero **sin probar contra una instancia real** — el usuario no compartió credenciales por confidencialidad (correcto, no hacía falta). Ver la sección de Fase 4 más abajo para qué falta validar apenas se carguen las variables de entorno reales.
 
@@ -236,6 +237,10 @@ Este repo incluye, a partir de esta entrega, una copia **literal y de solo lectu
 
 **Regla que sigue aplicando, sin excepción:** estos dos archivos son el sistema productivo real del usuario. **Nunca se editan desde este repo ni se sugieren cambios "en caliente" sobre ellos sin que el usuario lo pida explícitamente** — cualquier cambio a la integración de Plane (o a cualquier otra cosa) se hace en archivos nuevos y aditivos (como `apps-script/plane-integracion-sgc.gs`), nunca tocando `Codigo_final.gs`/`Index_final.html` directamente. Si en algún momento se detecta que la copia de referencia quedó desactualizada respecto del código real del usuario, hay que pedirle una copia nueva — no asumir ni inventar cambios.
 
+## Bug encontrado y corregido al verificar el entorno local (2026-09-07)
+
+Al correr `npm run build` por primera vez en la máquina del usuario, Next.js 16 con Turbopack levanta 21 workers en paralelo para "Collecting page data"/"Generating static pages" — cada worker es un proceso Node aparte, así que el singleton `global.__agoraDb` de `lib/db/client.ts` no lo comparten entre sí. Los ~10 workers que evalúan páginas con acceso a la base (`/configuracion/logs`, `/configuracion/plane`, `/gestion-calidad/registro`, etc.) abrían cada uno su propia conexión a `data/agora.db` y corrían `migrate()`/`seed()` a la vez, y el primer build falló con `ERR_SQLITE_ERROR: database is locked` en `/configuracion/logs`. `createConnection()` seteaba `PRAGMA journal_mode = WAL` pero no `PRAGMA busy_timeout`, así que un segundo proceso que pisaba el lock de escritura fallaba al instante en vez de esperar. **Corregido** agregando `database.exec("PRAGMA busy_timeout = 5000;")` justo después del `journal_mode` en `createConnection()` (`lib/db/client.ts`) — con el timeout, el segundo proceso espera hasta 5s a que el primero suelte el lock en vez de fallar. Reintentado el build y pasó limpio (81 rutas). No afecta el runtime normal (`next start`/`next dev` corren un solo proceso), solo se manifestaba en el build de producción con Turbopack.
+
 ## Próxima fase a implementar
 
 1. Confirmar con el usuario el resultado de la Fase 7 (análisis de causa, Acciones Correctivas, verificación de eficacia, relaciones, evidencias, vencimientos) y ver si hay ajustes antes de seguir con la **Fase 8 — Riesgos** (matriz probabilidad/impacto, controles, valoración residual, oportunidades) según el orden de `claude/spec-sgc-avenida-plus.md`.
@@ -244,4 +249,4 @@ Este repo incluye, a partir de esta entrega, una copia **literal y de solo lectu
 4. Si el usuario lo pide: sumar a `Index_final.html` la lectura de `plane_tracking` para mostrar el estado del ticket de Plane dentro de "Reg. Gestión AV".
 5. Decidir qué hacer con el bug latente `r002` vs `r002_manual` documentado arriba (hoy no rompe nada, es solo una hoja huérfana).
 6. Si el usuario lo pide: agregar un `error.tsx` (o generalizar el patrón de redirect-con-mensaje introducido en la Fase 7) para que cualquier validación fallida del portal muestre un aviso prolijo en vez de la página de error genérica de Next.js en producción.
-7. Configurar Node ≥ 22.5 y `npm install` en la máquina local del usuario, e iniciar Claude Code CLI en la carpeta del proyecto para continuar el desarrollo desde ahí (ver "Transición a Claude Code local" arriba).
+7. ~~Configurar Node ≥ 22.5 y `npm install` en la máquina local del usuario, e iniciar Claude Code CLI en la carpeta del proyecto para continuar el desarrollo desde ahí~~ — ✅ hecho el 2026-09-07 (git local inicializado y primer commit hecho, Node/npm/dependencias verificados, ver "Estado general" y el bug de `busy_timeout` arriba). Pendiente: decidir si se crea un repositorio remoto (GitHub u otro) y configurarlo.
