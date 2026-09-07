@@ -272,9 +272,23 @@ Al correr `npm run build` por primera vez en la máquina del usuario, Next.js 16
 
 Archivos clave para retomar: `lib/db/client.ts` (esquema), `lib/db/queries.ts` (queries + reexport de `lib/risk-scoring.ts`), `lib/risk-scoring.ts` (lógica pura, importable desde componentes cliente), `lib/actions/risks.ts`, `components/riesgos/`, `app/planificacion/riesgos-y-oportunidades/`.
 
+## ⚠️ Fase 9 — Contexto: excluida de Ágora (decisión del usuario, 2026-09-07)
+
+Al proponer seguir con la Fase 9 tal como está en la spec (Contexto de la organización: FODA, CAME, evaluación de pertinencia de Cambio climático, Partes interesadas), el usuario frenó explícitamente: *"Esto es mas de calidad, no lo pondria en Agora que es público para toda la empresa."* Después, preguntado por las lecturas posibles, confirmó la opción **"Solo la Política de Calidad debería ser pública; el resto (FODA/CAME) no"**.
+
+**Decisión:** la Fase 9 tal como está descripta en la spec (`claude/spec-sgc-avenida-plus.md`, sección 43–48 y el orden de fases en la sección 83–88, ambas marcadas con una nota) **no se construye en Ágora**. Es análisis estratégico que hace Calidad/Dirección puertas adentro (FODA, CAME, evaluación de pertinencia de cambio climático) — no es contenido ni una tarea para "cualquier colaborador", que es el criterio rector del portal (ver sección 0 de la spec: "¿Ayuda a entender? ¿Ayuda a hacer? ¿Ayuda a demostrar?"). Lo único de esa fase que sí es público **ya existe**: el concepto "Política de Calidad" en el Centro de Conocimiento (`lib/concepts-data.ts`, id `politica-de-calidad`, con el compromiso de Dirección redactado para Avenida+, desde la Fase 2) — no hace falta construir nada nuevo para cubrirlo.
+
+**Distinción que queda establecida para las fases futuras** (releer antes de proponer cualquier fase 10+): dentro de "Gestión de Calidad"/"Planificación", hay una diferencia entre:
+- **Hechos operativos concretos** (un riesgo detectado, una NC reportada, un ticket de Plane) → sí van en Ágora, porque cualquier área puede necesitar cargarlos o consultarlos. Esto es lo que ya se construyó en las Fases 3, 6, 7 y 8.
+- **Análisis estratégico de Calidad/Dirección** (FODA, CAME, contexto organizacional) → no va en Ágora. Queda fuera del portal (en el SGC interno de Calidad en Apps Script/Sheets, o en otro lugar que el usuario decida más adelante — no se definió dónde, no se preguntó).
+
+Antes de proponer la Fase 10 (Procesos) o cualquier fase siguiente, vale la pena confirmar con el usuario si aplica el mismo criterio a partes de esas fases (por ejemplo, "Auditorías" de la Fase 13 podría tener la misma tensión: el *programa* de auditorías es trabajo de Calidad, pero un *hallazgo* que genera una NC sí es relevante para el área auditada).
+
+**Nota sobre autenticación:** esta conversación también dejó en evidencia que, sin autenticación/roles reales (pendiente desde la Fase 3, ver `lib/mock-user.ts`), nada en Ágora está técnicamente restringido a Calidad — es una limitación a tener presente si en el futuro se decide que alguna pantalla sí debe vivir en el portal pero solo visible para el rol Calidad.
+
 ## Próxima fase a implementar
 
-1. Confirmar con el usuario el resultado de la Fase 8 (matriz, controles, valoración residual, oportunidades) y ver si hay ajustes antes de seguir con la **Fase 9 — Contexto** (FODA, CAME, partes interesadas, cambio climático) según el orden de `claude/spec-sgc-avenida-plus.md`.
+1. Preguntarle al usuario cómo seguir: ¿**Fase 10 — Procesos** (mapa, ficha, riesgos, indicadores, documentos) según `claude/spec-sgc-avenida-plus.md`, revisando primero si tiene la misma tensión "Calidad-interno vs. toda la empresa" recién resuelta para la Fase 9? ¿O priorizar primero autenticación/roles, ahora que quedó en evidencia que nada está realmente restringido?
 2. Probar `apps-script/plane-integracion-sgc.gs` en producción por un tiempo (ya confirmado funcionando, pero sin observar todavía corridas automáticas repetidas de los triggers).
 3. Decidir si el portal Ágora (Fase 3/4, base SQLite propia) debe además hablar directo por HTTP con `doGet`/`doPost` de `Codigo_final.gs` para que un reporte cargado en el portal también aparezca en el Apps Script real — hoy son dos integraciones con Plane paralelas e independientes (portal↔Plane por un lado, Apps Script↔Plane por otro) que no se cruzan entre sí todavía.
 4. Si el usuario lo pide: sumar a `Index_final.html` la lectura de `plane_tracking` para mostrar el estado del ticket de Plane dentro de "Reg. Gestión AV".

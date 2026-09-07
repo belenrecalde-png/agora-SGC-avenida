@@ -126,6 +126,8 @@ Sección "Centro de Conocimiento" (no solo "Glosario ISO"), con categorías: Con
 
 ## 43–48. Riesgos, contexto y partes interesadas
 
+**⚠️ Contexto y Partes interesadas (párrafos siguientes) excluidos de Ágora** — decisión del usuario, 2026-09-07 (ver `claude/progreso-implementacion.md`): es trabajo estratégico de Calidad/Dirección, no contenido para toda la empresa. Se conservan estos párrafos como referencia del análisis original, pero no se implementan en el portal salvo que el usuario pida explícitamente lo contrario. Riesgos y Oportunidades (más abajo) sí se construyó — es sobre hechos operativos concretos, no análisis estratégico.
+
 **Riesgos y Oportunidades**: tipo, código, procedencia, proceso, actividad, descripción, detalle, control existente, probabilidad/impacto/valoración inicial, plan de tratamiento/contingencia, responsable, fecha objetivo, estado, verificación, evidencia, probabilidad/impacto/valoración residual. Matriz configurable (inicial: probabilidad 1–3, impacto 1–5, valoración = probabilidad × impacto, semáforo; escala positiva diferenciada para oportunidades). Relación con procesos, objetivos, partes interesadas, proveedores, NC, AC, OM, tickets Plane. Asistente "¿Esto puede ser un riesgo?" con preguntas guía y botón "Registrar riesgo".
 
 **Contexto de la organización**: cuestiones internas/externas, FODA, CAME, relación con riesgos/oportunidades/partes interesadas/objetivos estratégicos/procesos. Incluye evaluación específica de pertinencia de **Cambio climático** (Sí/No/En evaluación + justificación, impacto, partes interesadas, requisitos, riesgos, evidencia, responsable, revisiones) — sin asumir pertinencia por defecto, debe quedar documentada la evaluación.
@@ -208,7 +210,7 @@ Resultado final esperado: un punto único desde el que cualquier colaborador pue
 6. Tipificación (Tickets Plane → clasificación NC/AC/AP/OM/Q/S/R)
 7. Gestión completa (análisis de causa, corrección, AC, verificación de eficacia, relaciones, evidencias)
 8. Riesgos (matriz, controles, residual, oportunidades)
-9. Contexto (FODA, CAME, partes interesadas, cambio climático)
+9. ~~Contexto (FODA, CAME, partes interesadas, cambio climático)~~ — **excluido de Ágora** (decisión del usuario, 2026-09-07, ver `claude/progreso-implementacion.md`): es análisis estratégico interno de Calidad/Dirección, no contenido para toda la empresa. No se construye en el portal. Lo único de esta fase que sí es público ya existe: el concepto "Política de Calidad" en el Centro de Conocimiento (Fase 2).
 10. Procesos (mapa, ficha, riesgos, indicadores, documentos)
 11. Objetivos e indicadores (metas, resultados, dashboards)
 12. Documentación (documentos, versiones, instructivos, control documental)
