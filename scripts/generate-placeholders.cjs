@@ -40,6 +40,8 @@ const IMPLEMENTED = new Set([
   "/documentacion/registros",
   "/documentacion/externos",
   "/evaluacion/auditorias",
+  "/planificacion/objetivos-de-calidad",
+  "/evaluacion/indicadores",
 ]);
 
 function toAppDir(href) {

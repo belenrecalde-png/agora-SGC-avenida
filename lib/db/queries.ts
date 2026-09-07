@@ -1,12 +1,13 @@
 import { randomUUID } from "node:crypto";
 import { db } from "./client";
 import { getRiskBand, getRiskScore, type RiskBand, type RiskKind } from "@/lib/risk-scoring";
+import { getIndicatorToleranceStatus, type ToleranceStatus } from "@/lib/indicator-scoring";
 
 // Reexportados tal cual para que el resto del código (Server Components) los
 // siga importando desde "@/lib/db/queries" sin cambios — ver el comentario en
 // lib/risk-scoring.ts sobre por qué la lógica pura vive en un módulo aparte.
-export { getRiskBand, getRiskScore };
-export type { RiskBand, RiskKind };
+export { getRiskBand, getRiskScore, getIndicatorToleranceStatus };
+export type { RiskBand, RiskKind, ToleranceStatus };
 
 export type Area = {
   id: string;
@@ -1343,3 +1344,422 @@ export function listRiskRelationshipsForRecord(recordId: string): RecordRiskLink
   }
   return results;
 }
+
+// ---------- Fase 11: Objetivos de Calidad e Indicadores ----------
+//
+// Dos entidades hermanas, cada una con su propia pantalla (Planificación →
+// Objetivos de Calidad, Evaluación → Indicadores), con el mismo patrón que
+// sgc_risks: snapshot de campos actuales + tabla de histórico aparte para la
+// vista "Meta vs Real"/tendencias. `activity_log` se reutiliza tal cual
+// (sin FK real), igual que para los riesgos.
+
+export type SgcObjective = {
+  id: string;
+  code: string;
+  title: string;
+  goal: string | null;
+  target_value: number | null;
+  indicator_id: string | null;
+  unit: string | null;
+  resources: string | null;
+  responsible: string | null;
+  area_id: string | null;
+  process_name: string | null;
+  start_date: string | null;
+  end_date: string | null;
+  frequency: string | null;
+  method: string | null;
+  current_result: string | null;
+  compliance_percent: number | null;
+  evidence: string | null;
+  observations: string | null;
+  status: string;
+  created_at: string;
+  updated_at: string;
+  closed_at: string | null;
+};
+
+export type ObjectiveResult = {
+  id: string;
+  objective_id: string;
+  period: string;
+  actual_value: number | null;
+  target_value: number | null;
+  notes: string | null;
+  created_at: string;
+};
+
+export type SgcIndicator = {
+  id: string;
+  code: string;
+  name: string;
+  description: string | null;
+  formula: string | null;
+  source: string | null;
+  unit: string | null;
+  target_value: number | null;
+  tolerance: number | null;
+  frequency: string | null;
+  responsible: string | null;
+  area_id: string | null;
+  process_name: string | null;
+  current_result: number | null;
+  current_period: string | null;
+  evidence: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type IndicatorResult = {
+  id: string;
+  indicator_id: string;
+  period: string;
+  value: number | null;
+  notes: string | null;
+  created_at: string;
+};
+
+function rowToObjective(row: Record<string, unknown>): SgcObjective {
+  return {
+    id: row.id as string,
+    code: row.code as string,
+    title: row.title as string,
+    goal: (row.goal as string) ?? null,
+    target_value: (row.target_value as number) ?? null,
+    indicator_id: (row.indicator_id as string) ?? null,
+    unit: (row.unit as string) ?? null,
+    resources: (row.resources as string) ?? null,
+    responsible: (row.responsible as string) ?? null,
+    area_id: (row.area_id as string) ?? null,
+    process_name: (row.process_name as string) ?? null,
+    start_date: (row.start_date as string) ?? null,
+    end_date: (row.end_date as string) ?? null,
+    frequency: (row.frequency as string) ?? null,
+    method: (row.method as string) ?? null,
+    current_result: (row.current_result as string) ?? null,
+    compliance_percent: (row.compliance_percent as number) ?? null,
+    evidence: (row.evidence as string) ?? null,
+    observations: (row.observations as string) ?? null,
+    status: row.status as string,
+    created_at: row.created_at as string,
+    updated_at: row.updated_at as string,
+    closed_at: (row.closed_at as string) ?? null,
+  };
+}
+
+function rowToObjectiveResult(row: Record<string, unknown>): ObjectiveResult {
+  return {
+    id: row.id as string,
+    objective_id: row.objective_id as string,
+    period: row.period as string,
+    actual_value: (row.actual_value as number) ?? null,
+    target_value: (row.target_value as number) ?? null,
+    notes: (row.notes as string) ?? null,
+    created_at: row.created_at as string,
+  };
+}
+
+function rowToIndicator(row: Record<string, unknown>): SgcIndicator {
+  return {
+    id: row.id as string,
+    code: row.code as string,
+    name: row.name as string,
+    description: (row.description as string) ?? null,
+    formula: (row.formula as string) ?? null,
+    source: (row.source as string) ?? null,
+    unit: (row.unit as string) ?? null,
+    target_value: (row.target_value as number) ?? null,
+    tolerance: (row.tolerance as number) ?? null,
+    frequency: (row.frequency as string) ?? null,
+    responsible: (row.responsible as string) ?? null,
+    area_id: (row.area_id as string) ?? null,
+    process_name: (row.process_name as string) ?? null,
+    current_result: (row.current_result as number) ?? null,
+    current_period: (row.current_period as string) ?? null,
+    evidence: (row.evidence as string) ?? null,
+    created_at: row.created_at as string,
+    updated_at: row.updated_at as string,
+  };
+}
+
+function rowToIndicatorResult(row: Record<string, unknown>): IndicatorResult {
+  return {
+    id: row.id as string,
+    indicator_id: row.indicator_id as string,
+    period: row.period as string,
+    value: (row.value as number) ?? null,
+    notes: (row.notes as string) ?? null,
+    created_at: row.created_at as string,
+  };
+}
+
+export const OBJECTIVE_STATUS_FLOW = ["En curso", "Cumplido", "En riesgo", "Incumplido"] as const;
+
+// ---------- Objetivos de Calidad ----------
+
+export type CreateObjectiveInput = {
+  title: string;
+  goal: string | null;
+  targetValue: number | null;
+  indicatorId: string | null;
+  unit: string | null;
+  resources: string | null;
+  responsible: string | null;
+  areaId: string | null;
+  processName: string | null;
+  startDate: string | null;
+  endDate: string | null;
+  frequency: string | null;
+  method: string | null;
+};
+
+export function createObjective(input: CreateObjectiveInput): SgcObjective {
+  const code = generateSgcCode("OBJ");
+  const id = randomUUID();
+  const now = new Date().toISOString();
+
+  db.prepare(
+    `INSERT INTO sgc_objectives (
+      id, code, title, goal, target_value, indicator_id, unit, resources, responsible,
+      area_id, process_name, start_date, end_date, frequency, method, status, created_at, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'En curso', ?, ?)`,
+  ).run(
+    id,
+    code,
+    input.title,
+    input.goal,
+    input.targetValue,
+    input.indicatorId,
+    input.unit,
+    input.resources,
+    input.responsible,
+    input.areaId,
+    input.processName,
+    input.startDate,
+    input.endDate,
+    input.frequency,
+    input.method,
+    now,
+    now,
+  );
+
+  addActivityLog(id, "Objetivo creado", `Se creó ${code}.`);
+  return getObjectiveByCode(code)!;
+}
+
+export function listObjectives(filter: { areaId?: string } = {}): SgcObjective[] {
+  const sql = filter.areaId
+    ? "SELECT * FROM sgc_objectives WHERE area_id = ? ORDER BY created_at DESC"
+    : "SELECT * FROM sgc_objectives ORDER BY created_at DESC";
+  return (filter.areaId ? db.prepare(sql).all(filter.areaId) : db.prepare(sql).all()).map(rowToObjective);
+}
+
+export function getObjectiveByCode(code: string): SgcObjective | undefined {
+  const row = db.prepare("SELECT * FROM sgc_objectives WHERE code = ?").get(code);
+  return row ? rowToObjective(row) : undefined;
+}
+
+export function getObjectiveById(id: string): SgcObjective | undefined {
+  const row = db.prepare("SELECT * FROM sgc_objectives WHERE id = ?").get(id);
+  return row ? rowToObjective(row) : undefined;
+}
+
+export function updateObjective(
+  objectiveId: string,
+  input: CreateObjectiveInput & {
+    currentResult: string | null;
+    compliancePercent: number | null;
+    evidence: string | null;
+    observations: string | null;
+  },
+): SgcObjective {
+  const now = new Date().toISOString();
+  db.prepare(
+    `UPDATE sgc_objectives SET
+      title = ?, goal = ?, target_value = ?, indicator_id = ?, unit = ?, resources = ?,
+      responsible = ?, area_id = ?, process_name = ?, start_date = ?, end_date = ?,
+      frequency = ?, method = ?, current_result = ?, compliance_percent = ?, evidence = ?,
+      observations = ?, updated_at = ?
+     WHERE id = ?`,
+  ).run(
+    input.title,
+    input.goal,
+    input.targetValue,
+    input.indicatorId,
+    input.unit,
+    input.resources,
+    input.responsible,
+    input.areaId,
+    input.processName,
+    input.startDate,
+    input.endDate,
+    input.frequency,
+    input.method,
+    input.currentResult,
+    input.compliancePercent,
+    input.evidence,
+    input.observations,
+    now,
+    objectiveId,
+  );
+  addActivityLog(objectiveId, "Objetivo actualizado", input.currentResult ? `Resultado actual: ${input.currentResult}` : undefined);
+  return getObjectiveById(objectiveId)!;
+}
+
+export function updateObjectiveStatus(objectiveId: string, newStatus: string): SgcObjective {
+  const objective = getObjectiveById(objectiveId);
+  if (!objective) throw new Error("Objetivo no encontrado.");
+  const now = new Date().toISOString();
+  const closedAt = newStatus === "Cumplido" ? now : objective.closed_at;
+  db.prepare("UPDATE sgc_objectives SET status = ?, closed_at = ?, updated_at = ? WHERE id = ?").run(
+    newStatus,
+    closedAt,
+    now,
+    objectiveId,
+  );
+  addActivityLog(objectiveId, "Cambio de estado", `${objective.status} → ${newStatus}`);
+  return getObjectiveById(objectiveId)!;
+}
+
+export function addObjectiveResult(
+  objectiveId: string,
+  input: { period: string; actualValue: number | null; targetValue: number | null; notes: string | null },
+): void {
+  db.prepare(
+    "INSERT INTO sgc_objective_results (id, objective_id, period, actual_value, target_value, notes, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+  ).run(randomUUID(), objectiveId, input.period, input.actualValue, input.targetValue, input.notes, new Date().toISOString());
+  addActivityLog(
+    objectiveId,
+    "Resultado agregado",
+    `Período ${input.period}: ${input.actualValue ?? "sin dato"}${input.targetValue !== null ? ` (meta: ${input.targetValue})` : ""}.`,
+  );
+}
+
+export function listObjectiveResults(objectiveId: string): ObjectiveResult[] {
+  return db
+    .prepare("SELECT * FROM sgc_objective_results WHERE objective_id = ? ORDER BY period ASC")
+    .all(objectiveId)
+    .map(rowToObjectiveResult);
+}
+
+// ---------- Indicadores ----------
+
+export type CreateIndicatorInput = {
+  name: string;
+  description: string | null;
+  formula: string | null;
+  source: string | null;
+  unit: string | null;
+  targetValue: number | null;
+  tolerance: number | null;
+  frequency: string | null;
+  responsible: string | null;
+  areaId: string | null;
+  processName: string | null;
+};
+
+export function createIndicator(input: CreateIndicatorInput): SgcIndicator {
+  const code = generateSgcCode("IND");
+  const id = randomUUID();
+  const now = new Date().toISOString();
+
+  db.prepare(
+    `INSERT INTO sgc_indicators (
+      id, code, name, description, formula, source, unit, target_value, tolerance,
+      frequency, responsible, area_id, process_name, created_at, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  ).run(
+    id,
+    code,
+    input.name,
+    input.description,
+    input.formula,
+    input.source,
+    input.unit,
+    input.targetValue,
+    input.tolerance,
+    input.frequency,
+    input.responsible,
+    input.areaId,
+    input.processName,
+    now,
+    now,
+  );
+
+  addActivityLog(id, "Indicador creado", `Se creó ${code}.`);
+  return getIndicatorByCode(code)!;
+}
+
+export function listIndicators(filter: { areaId?: string } = {}): SgcIndicator[] {
+  const sql = filter.areaId
+    ? "SELECT * FROM sgc_indicators WHERE area_id = ? ORDER BY created_at DESC"
+    : "SELECT * FROM sgc_indicators ORDER BY created_at DESC";
+  return (filter.areaId ? db.prepare(sql).all(filter.areaId) : db.prepare(sql).all()).map(rowToIndicator);
+}
+
+export function getIndicatorByCode(code: string): SgcIndicator | undefined {
+  const row = db.prepare("SELECT * FROM sgc_indicators WHERE code = ?").get(code);
+  return row ? rowToIndicator(row) : undefined;
+}
+
+export function getIndicatorById(id: string): SgcIndicator | undefined {
+  const row = db.prepare("SELECT * FROM sgc_indicators WHERE id = ?").get(id);
+  return row ? rowToIndicator(row) : undefined;
+}
+
+export function updateIndicator(indicatorId: string, input: CreateIndicatorInput): SgcIndicator {
+  const now = new Date().toISOString();
+  db.prepare(
+    `UPDATE sgc_indicators SET
+      name = ?, description = ?, formula = ?, source = ?, unit = ?, target_value = ?,
+      tolerance = ?, frequency = ?, responsible = ?, area_id = ?, process_name = ?, updated_at = ?
+     WHERE id = ?`,
+  ).run(
+    input.name,
+    input.description,
+    input.formula,
+    input.source,
+    input.unit,
+    input.targetValue,
+    input.tolerance,
+    input.frequency,
+    input.responsible,
+    input.areaId,
+    input.processName,
+    now,
+    indicatorId,
+  );
+  addActivityLog(indicatorId, "Indicador actualizado");
+  return getIndicatorById(indicatorId)!;
+}
+
+export function addIndicatorResult(
+  indicatorId: string,
+  input: { period: string; value: number | null; notes: string | null },
+): void {
+  db.prepare(
+    "INSERT INTO sgc_indicator_results (id, indicator_id, period, value, notes, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+  ).run(randomUUID(), indicatorId, input.period, input.value, input.notes, new Date().toISOString());
+
+  // El resultado más reciente por período queda además como snapshot en el
+  // propio indicador (current_result/current_period) — mismo criterio que
+  // "resultado actual" de la spec, sin tener que ir a buscarlo al histórico
+  // para mostrarlo en el listado.
+  const now = new Date().toISOString();
+  db.prepare("UPDATE sgc_indicators SET current_result = ?, current_period = ?, updated_at = ? WHERE id = ?").run(
+    input.value,
+    input.period,
+    now,
+    indicatorId,
+  );
+
+  addActivityLog(indicatorId, "Resultado agregado", `Período ${input.period}: ${input.value ?? "sin dato"}.`);
+}
+
+export function listIndicatorResults(indicatorId: string): IndicatorResult[] {
+  return db
+    .prepare("SELECT * FROM sgc_indicator_results WHERE indicator_id = ? ORDER BY period ASC")
+    .all(indicatorId)
+    .map(rowToIndicatorResult);
+}
+

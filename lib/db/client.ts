@@ -195,6 +195,77 @@ CREATE TABLE IF NOT EXISTS sgc_risk_relationships (
   label TEXT,
   created_at TEXT NOT NULL
 );
+
+-- Fase 11: Objetivos de Calidad e Indicadores. Mismo criterio que sgc_risks:
+-- snapshot de los campos actuales (igual que los lista la spec) + una tabla
+-- de histórico aparte para la vista "Meta vs Real" y las tendencias — mismo
+-- patrón que evidence_note (Fase 3, campo único) conviviendo con
+-- sgc_evidence (Fase 7, lista histórica).
+CREATE TABLE IF NOT EXISTS sgc_objectives (
+  id TEXT PRIMARY KEY,
+  code TEXT NOT NULL UNIQUE,
+  title TEXT NOT NULL,
+  goal TEXT,
+  target_value REAL,
+  indicator_id TEXT,
+  unit TEXT,
+  resources TEXT,
+  responsible TEXT,
+  area_id TEXT,
+  process_name TEXT,
+  start_date TEXT,
+  end_date TEXT,
+  frequency TEXT,
+  method TEXT,
+  current_result TEXT,
+  compliance_percent REAL,
+  evidence TEXT,
+  observations TEXT,
+  status TEXT NOT NULL DEFAULT 'En curso',
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  closed_at TEXT
+);
+
+CREATE TABLE IF NOT EXISTS sgc_objective_results (
+  id TEXT PRIMARY KEY,
+  objective_id TEXT NOT NULL,
+  period TEXT NOT NULL,
+  actual_value REAL,
+  target_value REAL,
+  notes TEXT,
+  created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS sgc_indicators (
+  id TEXT PRIMARY KEY,
+  code TEXT NOT NULL UNIQUE,
+  name TEXT NOT NULL,
+  description TEXT,
+  formula TEXT,
+  source TEXT,
+  unit TEXT,
+  target_value REAL,
+  tolerance REAL,
+  frequency TEXT,
+  responsible TEXT,
+  area_id TEXT,
+  process_name TEXT,
+  current_result REAL,
+  current_period TEXT,
+  evidence TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS sgc_indicator_results (
+  id TEXT PRIMARY KEY,
+  indicator_id TEXT NOT NULL,
+  period TEXT NOT NULL,
+  value REAL,
+  notes TEXT,
+  created_at TEXT NOT NULL
+);
 `;
 
 // Fase 4: columnas nuevas en `records` para guardar la relación con el work item
