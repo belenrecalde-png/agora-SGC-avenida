@@ -1,0 +1,3395 @@
+<!--
+  ⚠️ ARCHIVO DE REFERENCIA — SOLO LECTURA. NO ES PARTE DEL BUILD DE NEXT.JS.
+
+  Copia LITERAL del frontend real y productivo del SGC de Avenida+ en Google
+  Apps Script (consume Codigo_final.gs vía google.script.run). El usuario lo
+  subió tal cual al Project de Claude el 2026-09-06 como referencia de
+  esquema para la integración con Plane (Fase 5 — ver
+  apps-script/plane-integracion-sgc.gs y claude/progreso-implementacion.md).
+
+  REGLA QUE APLICA SIN EXCEPCIÓN: nunca editar este archivo desde este repo,
+  ni sugerir cambios "en caliente" sobre él, sin que el usuario lo pida
+  explícitamente. Si esta copia queda desactualizada respecto del código
+  real del usuario, hay que pedirle una copia nueva — no asumir ni inventar
+  cambios. Ver claude/progreso-implementacion.md para el historial completo.
+-->
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SGC — avenida+ ISO 9001</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+<style>
+/* ── avenida+ brand tokens ─────────────────────────────────────── */
+:root {
+  --av-black:  #0A0A0A;
+  --av-violet: #663EDD;
+  --av-violet-light: #DAD6F2;
+  --av-blue:   #3E63DD;
+  --av-white:  #FFFFFF;
+
+  /* semantic aliases — light mode */
+  --purple:       var(--av-violet);
+  --purple-light: var(--av-violet-light);
+  --purple-dark:  #4A2CB8;
+  --green:        #2D7A3A;
+  --green-light:  #D6F0DA;
+  --amber:        #8A5000;
+  --amber-light:  #FFF0D0;
+  --blue:         var(--av-blue);
+  --blue-light:   #DDEAFF;
+  --red:          #B02020;
+  --red-light:    #FDEAEA;
+
+  --bg:     #FAFAFA;
+  --bg2:    #F4F2FF;
+  --bg3:    #EDE9FA;
+  --text:   #0A0A0A;
+  --text2:  #3D3A4A;
+  --text3:  #7B7890;
+  --border: rgba(102,62,221,0.10);
+  --border2:rgba(102,62,221,0.18);
+
+  --radius:    8px;
+  --radius-lg: 14px;
+  --font:  'Inter', system-ui, sans-serif;
+  --mono:  'Cascadia Code','Fira Code',monospace;
+  --shadow: 0 1px 4px rgba(102,62,221,0.08), 0 1px 2px rgba(0,0,0,0.04);
+  --shadow-md: 0 4px 20px rgba(102,62,221,0.12);
+}
+
+/* ── dark mode ──────────────────────────────────────────────────── */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg:     #100F17; --bg2: #1A1827; --bg3: #221F32;
+    --text:   #F0EEF9; --text2: #B0AACC; --text3: #7B7890;
+    --border: rgba(102,62,221,0.18); --border2: rgba(102,62,221,0.3);
+    --purple-light: #2A1F5C; --green-light: #0F2E14; --amber-light: #281800;
+    --blue-light: #0D1D45; --red-light: #2A0A0A;
+  }
+}
+:root[data-theme="dark"] {
+  --bg:     #100F17; --bg2: #1A1827; --bg3: #221F32;
+  --text:   #F0EEF9; --text2: #B0AACC; --text3: #7B7890;
+  --border: rgba(102,62,221,0.18); --border2: rgba(102,62,221,0.3);
+  --purple-light: #2A1F5C; --green-light: #0F2E14; --amber-light: #281800;
+  --blue-light: #0D1D45; --red-light: #2A0A0A;
+}
+
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--font);color:var(--text);background:var(--bg3);font-size:13px;height:100vh;display:flex;flex-direction:column;-webkit-font-smoothing:antialiased}
+
+/* ── app shell ──────────────────────────────────────────────────── */
+.app{display:flex;flex:1;overflow:hidden;max-width:1280px;width:100%;margin:0 auto;background:var(--bg);box-shadow:var(--shadow-md)}
+@media(min-width:1280px){body{padding:14px}.app{border-radius:var(--radius-lg);border:0.5px solid var(--border)}}
+
+/* ── login ──────────────────────────────────────────────────────── */
+#login-screen{display:flex;flex:1;align-items:center;justify-content:center;background:var(--av-black);min-height:100vh}
+.login-card{background:var(--av-white);border-radius:20px;padding:44px 44px 40px;width:400px;text-align:center;box-shadow:0 24px 80px rgba(0,0,0,.35)}
+.login-logo{display:flex;align-items:center;justify-content:center;margin-bottom:28px}
+.av-logo{font-family:var(--font);font-size:26px;font-weight:700;color:var(--av-black);letter-spacing:-1px;line-height:1}
+.av-logo span{color:var(--av-violet)}
+.login-sub-label{font-size:10px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:#999;margin-bottom:6px}
+.login-title{font-size:22px;font-weight:700;margin-bottom:6px;color:var(--av-black);letter-spacing:-.4px}
+.login-sub{font-size:12px;color:#777;margin-bottom:28px;line-height:1.6}
+.login-form{display:flex;flex-direction:column;gap:12px;text-align:left}
+.login-form label{font-size:11px;font-weight:600;color:#555;margin-bottom:3px;display:block;letter-spacing:.02em}
+.login-form input{width:100%;border:1.5px solid #E8E4F7;border-radius:10px;padding:10px 13px;font-size:13px;font-family:var(--font);background:#FAFAFF;color:var(--av-black);transition:border-color .15s}
+.login-form input:focus{outline:none;border-color:var(--av-violet);background:#fff}
+.btn-login{width:100%;height:44px;background:var(--av-violet);color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:600;font-family:var(--font);cursor:pointer;letter-spacing:.02em;transition:background .15s,transform .1s}
+.btn-login:hover{background:var(--purple-dark)}
+.btn-login:active{transform:scale(.99)}
+.btn-login:disabled{opacity:.6;cursor:default}
+.login-error{background:#FEF0F0;color:#B02020;border-radius:8px;padding:9px 12px;font-size:12px;margin-top:4px;display:none;text-align:left;border:1px solid #F9D0D0}
+
+/* ── user chip ──────────────────────────────────────────────────── */
+.user-chip{display:flex;align-items:center;gap:7px;padding:4px 10px 4px 5px;border-radius:99px;background:var(--bg2);border:1px solid var(--border);cursor:pointer;transition:background .12s}
+.user-chip:hover{background:var(--bg3)}
+.user-avatar-initials{width:26px;height:26px;border-radius:50%;background:var(--av-violet);color:#fff;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.role-badge{font-size:10px;font-weight:600;padding:2px 8px;border-radius:99px;background:var(--purple-light);color:var(--av-violet)}
+.role-badge.admin{background:var(--av-violet);color:#fff}
+
+/* ── switch ──────────────────────────────────────────────────────── */
+.user-row{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border)}
+.user-row-av{width:32px;height:32px;border-radius:50%;background:var(--purple-light);color:var(--av-violet);font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.switch{position:relative;width:34px;height:20px;flex-shrink:0}
+.switch input{opacity:0;width:0;height:0}
+.switch-slider{position:absolute;inset:0;background:var(--bg3);border-radius:99px;cursor:pointer;transition:.2s;border:1.5px solid var(--border2)}
+.switch input:checked + .switch-slider{background:var(--av-violet);border-color:var(--av-violet)}
+.switch-slider:before{content:'';position:absolute;width:13px;height:13px;left:2px;top:2px;background:white;border-radius:50%;transition:.2s}
+.switch input:checked + .switch-slider:before{left:16px}
+
+/* ── sidebar — avenida+ dark ────────────────────────────────────── */
+.sidebar{width:188px;background:var(--bg2);;display:flex;flex-direction:column;flex-shrink:0;overflow-y:auto}
+.sgc-header{padding:14px 12px 12px;border-bottom:1px solid var(--border)}
+.av-sidebar-logo{font-family:var(--font);font-size:17px;font-weight:700;color:var(--text);letter-spacing:-0.5px;line-height:1;margin-bottom:2px}
+.av-sidebar-logo span{color:var(--av-violet)}
+.av-sidebar-sub{font-size:8px;font-weight:600;color:var(--text3);letter-spacing:.08em;text-transform:uppercase;margin-top:1px}
+.sgc-tag{display:inline-block;background:var(--av-violet);color:#fff;font-size:8px;font-weight:700;padding:2px 6px;border-radius:4px;letter-spacing:.06em;margin-top:6px}
+
+.nav-section{padding:8px 0;border-bottom:1px solid var(--border)}
+.nav-label{font-size:8px;font-weight:700;color:rgba(255,255,255,.3);padding:5px 12px 2px;letter-spacing:.1em;text-transform:uppercase}
+.nav-item{display:flex;align-items:center;gap:7px;padding:5px 12px;cursor:pointer;font-size:11.5px;font-weight:500;color:var(--text2);border:none;background:none;width:100%;text-align:left;transition:all .12s;border-radius:8px}
+.nav-item:hover{background:var(--purple-light);color:var(--purple)}
+.nav-item.active{background:#E8E4F7;color:#663EDD;font-weight:600;border-left:3px solid #663EDD;padding-left:9px}
+.nav-item.active .nbadge{background:rgba(102,62,221,.15);color:#663EDD}
+.nav-item.active i{color:#663EDD}
+.nav-item i{font-size:14px;flex-shrink:0;color:var(--text3)}
+.nbadge{font-size:10px;margin-left:auto;background:var(--purple-light);border-radius:99px;padding:1px 7px;color:var(--purple);font-weight:600}
+.nbadge.warn{background:#FFF0D0;color:#8A5000}
+.nbadge.ok{background:#D6F0DA;color:#2D7A3A}
+.nbadge.err{background:#FDEAEA;color:#B02020}
+
+/* ── main ────────────────────────────────────────────────────────── */
+.main{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0}
+.topbar{display:flex;align-items:center;gap:8px;padding:10px 16px;border-bottom:1px solid var(--border);flex-shrink:0;background:var(--bg)}
+.topbar-title{font-size:14px;font-weight:700;flex:1;letter-spacing:-.3px}
+.topbar input{flex:1;height:32px;border:1.5px solid var(--border2);border-radius:8px;padding:0 10px;font-size:12px;font-family:var(--font);background:var(--bg2);color:var(--text)}
+.topbar input:focus{outline:none;border-color:var(--av-violet)}
+.topbar select{height:32px;border:1.5px solid var(--border2);border-radius:8px;padding:0 8px;font-size:12px;font-family:var(--font);background:var(--bg2);color:var(--text)}
+
+/* ── buttons ─────────────────────────────────────────────────────── */
+.btn{display:inline-flex;align-items:center;gap:5px;padding:0 12px;height:32px;border-radius:8px;border:1.5px solid var(--border2);background:var(--bg);font-size:12px;font-weight:500;font-family:var(--font);cursor:pointer;color:var(--text);white-space:nowrap;transition:all .12s}
+.btn:hover{background:var(--bg2);border-color:var(--av-violet)}
+.btn.primary{background:var(--av-violet);color:#fff;border-color:var(--av-violet)}
+.btn.primary:hover{background:var(--purple-dark);border-color:var(--purple-dark)}
+.btn.danger{background:var(--red-light);color:var(--red);border-color:#F5BFBF}
+.btn.danger:hover{background:#FBDADA}
+.btn.sm{height:26px;padding:0 9px;font-size:11px;border-radius:6px}
+.content{flex:1;overflow-y:auto;padding:14px 16px}
+
+/* ── tables ──────────────────────────────────────────────────────── */
+.tbl{width:100%;border-collapse:collapse;table-layout:fixed}
+.tbl th{font-size:10px;font-weight:700;letter-spacing:.04em;color:var(--text3);text-align:left;padding:4px 9px 5px;border-bottom:1.5px solid var(--border2);text-transform:uppercase}
+.tbl td{padding:8px 9px;border-bottom:1px solid var(--border);font-size:12px;vertical-align:middle}
+.tbl tr:last-child td{border-bottom:none}
+.tbl tr:hover td{background:var(--bg2)}
+
+/* ── pills ───────────────────────────────────────────────────────── */
+.pill{display:inline-flex;align-items:center;font-size:10px;font-weight:600;padding:3px 10px;border-radius:99px;letter-spacing:.02em;white-space:nowrap}
+.pv{background:var(--green-light);color:var(--green)}
+.pr{background:var(--amber-light);color:var(--amber)}
+.pb{background:var(--blue-light);color:var(--blue)}
+.po{background:var(--bg3);color:var(--text3)}
+.pa{background:var(--purple-light);color:var(--av-violet)}
+
+/* ── cards ───────────────────────────────────────────────────────── */
+.stat-card{background:var(--bg);border-radius:12px;padding:14px 16px;border:1.5px solid var(--border);box-shadow:var(--shadow)}
+.stat-card .sl{font-size:10px;font-weight:700;color:var(--text3);margin-bottom:6px;text-transform:uppercase;letter-spacing:.05em}
+.stat-card .sv{font-size:26px;font-weight:700;letter-spacing:-.5px}
+.stats-row{display:grid;gap:10px;margin-bottom:14px}
+.area-chip{display:inline-flex;align-items:center;gap:3px;font-size:11px;font-weight:500;padding:2px 8px;border-radius:99px;background:var(--purple-light);color:var(--av-violet)}
+.doc-code{font-family:var(--mono);font-size:11px;color:var(--text3);background:var(--bg2);padding:1px 5px;border-radius:4px}
+.nc-badge{display:inline-flex;align-items:center;font-size:10px;font-weight:600;padding:1px 7px;border-radius:99px;background:var(--red-light);color:var(--red);margin-left:5px}
+
+/* ── modals ──────────────────────────────────────────────────────── */
+.modal-bg{display:none;position:fixed;inset:0;background:rgba(10,10,10,.6);align-items:center;justify-content:center;z-index:1000;backdrop-filter:blur(2px)}
+.modal-bg.open{display:flex}
+.modal{background:var(--bg);border-radius:16px;border:1.5px solid var(--border2);padding:24px;width:520px;max-width:96vw;max-height:90vh;overflow-y:auto;box-shadow:0 24px 60px rgba(10,10,10,.18)}
+.modal h3{font-size:15px;font-weight:700;margin-bottom:16px;letter-spacing:-.3px}
+.field{margin-bottom:12px}
+.field label{display:block;font-size:11px;font-weight:600;color:var(--text3);margin-bottom:4px;letter-spacing:.03em;text-transform:uppercase}
+.field input,.field select,.field textarea{width:100%;border:1.5px solid var(--border2);border-radius:8px;padding:7px 10px;font-size:12px;font-family:var(--font);background:var(--bg2);color:var(--text);transition:border-color .15s}
+.field input:focus,.field select:focus,.field textarea:focus{outline:none;border-color:var(--av-violet);background:var(--bg)}
+.field textarea{resize:vertical;min-height:58px}
+.field-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.modal-footer{display:flex;justify-content:flex-end;gap:8px;margin-top:20px;padding-top:16px;border-top:1px solid var(--border)}
+
+/* ── detail ──────────────────────────────────────────────────────── */
+.hist-item{display:flex;gap:9px;padding:7px 0;border-bottom:1px solid var(--border);font-size:12px}
+.hist-ver{font-family:var(--mono);font-size:11px;color:var(--text3);min-width:36px;font-weight:600}
+.section-title{font-size:9px;font-weight:700;color:var(--text3);margin:14px 0 6px;text-transform:uppercase;letter-spacing:.08em}
+.log-item{display:flex;gap:9px;padding:6px 0;border-bottom:1px solid var(--border);font-size:11px;color:var(--text2)}
+.log-time{color:var(--text3);min-width:120px;flex-shrink:0;font-size:10px}
+.flow-step{display:flex;align-items:center;gap:7px;padding:6px 10px;border-radius:8px;border:1.5px solid var(--border);font-size:11px;font-weight:500;margin-bottom:5px;background:var(--bg2)}
+.flow-step.done-step{border-color:var(--green);background:var(--green-light);color:var(--green)}
+.flow-step.active-step{border-color:var(--av-violet);background:var(--purple-light);color:var(--av-violet);font-weight:700}
+
+/* ── semáforo ───────────────────────────────────────────────────── */
+.semaforo-card{background:var(--bg);border:1.5px solid var(--border);border-radius:12px;padding:12px 14px;display:flex;align-items:center;gap:10px;cursor:pointer;transition:all .12s}
+.semaforo-card:hover{border-color:var(--av-violet);box-shadow:var(--shadow)}
+.dot{width:11px;height:11px;border-radius:50%;flex-shrink:0}
+.dot-g{background:#2D7A3A}.dot-a{background:#E08800}.dot-r{background:#E04040}
+.av{width:28px;height:28px;border-radius:50%;background:var(--purple-light);color:var(--av-violet);font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.chart-bar-wrap{margin-bottom:8px}
+.chart-label{font-size:11px;color:var(--text2);margin-bottom:3px;display:flex;justify-content:space-between;font-weight:500}
+.chart-track{background:var(--bg3);border-radius:99px;height:8px;overflow:hidden}
+.chart-fill{height:8px;border-radius:99px}
+
+/* ── loading ─────────────────────────────────────────────────────── */
+.loading{display:flex;align-items:center;justify-content:center;padding:48px;gap:12px;color:var(--text3);font-size:13px}
+.spinner{width:20px;height:20px;border:2.5px solid var(--border2);border-top-color:var(--av-violet);border-radius:50%;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.empty{text-align:center;padding:40px;color:var(--text3);font-size:13px}
+.setup-banner{background:var(--amber-light);border:1px solid #F5CC7A;border-radius:10px;padding:11px 14px;margin-bottom:14px;font-size:12px;color:var(--amber);display:flex;align-items:flex-start;gap:8px}
+.setup-banner a{color:var(--av-violet);text-decoration:underline;cursor:pointer}
+
+/* ── kanban ──────────────────────────────────────────────────────── */
+.kanban{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;height:100%}
+.kanban-col{background:var(--bg2);border-radius:10px;padding:10px;display:flex;flex-direction:column;min-height:0;border:1px solid var(--border)}
+.kanban-col-header{font-size:10px;font-weight:700;color:var(--text3);padding:3px 4px 8px;display:flex;justify-content:space-between;align-items:center;text-transform:uppercase;letter-spacing:.06em}
+.kanban-cards{flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:7px}
+.task-card{background:var(--bg);border:1.5px solid var(--border);border-radius:10px;padding:10px 12px;cursor:pointer;transition:all .12s}
+.task-card:hover{border-color:var(--av-violet);box-shadow:var(--shadow)}
+.task-card-title{font-size:12px;font-weight:600;margin-bottom:6px;line-height:1.3}
+.task-card-meta{display:flex;align-items:center;gap:5px;flex-wrap:wrap}
+.prio-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.prio-alta{background:#E04040}.prio-media{background:#E08800}.prio-baja{background:#2D7A3A}
+.task-avatars{display:flex;margin-left:auto}
+.task-avatar{width:20px;height:20px;border-radius:50%;background:var(--av-violet);color:#fff;font-size:8px;font-weight:700;display:flex;align-items:center;justify-content:center;border:2px solid var(--bg);margin-left:-6px}
+.task-due{font-size:10px;color:var(--text3);display:flex;align-items:center;gap:3px}
+.task-due.overdue{color:var(--red);font-weight:600}
+.comment-item{display:flex;gap:9px;padding:9px 0;border-bottom:1px solid var(--border)}
+.comment-av{width:28px;height:28px;border-radius:50%;background:var(--purple-light);color:var(--av-violet);font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.comment-body{flex:1;font-size:12px}
+.comment-meta{font-size:10px;color:var(--text3);margin-bottom:3px;font-weight:600}
+.assignee-chip{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:500;padding:3px 10px;border-radius:99px;background:var(--purple-light);color:var(--av-violet);border:1px solid var(--border2)}
+.assignee-chip .x{cursor:pointer;color:var(--av-violet);font-size:14px;opacity:.7}
+.assignee-chip .x:hover{opacity:1}
+.assignee-picker{display:flex;flex-wrap:wrap;gap:6px;margin-top:7px}
+</style>
+</head>
+</head>
+<body>
+
+<!-- LOGIN SCREEN -->
+<div id="login-screen">
+  <div class="login-card" id="login-card-main">
+    <div class="login-logo">
+      <div class="av-logo">avenida<span>+</span></div>
+    </div>
+    <div class="login-sub-label">Sistema de Gestión de Calidad</div>
+    <h1 class="login-title">Iniciar sesión</h1>
+    <p class="login-sub">Ingresá con tu mail y contraseña habilitados por el administrador.</p>
+    <div class="login-form">
+      <div>
+        <label>Correo electrónico</label>
+        <input type="email" id="login-email" placeholder="usuario@empresa.com" onkeydown="if(event.key==='Enter')document.getElementById('login-pass').focus()">
+      </div>
+      <div>
+        <label>Contraseña</label>
+        <input type="password" id="login-pass" placeholder="••••••••" onkeydown="if(event.key==='Enter')doLogin()">
+      </div>
+      <button class="btn-login" id="btn-login" onclick="doLogin()">Ingresar al SGC →</button>
+      <div class="login-error" id="login-error">Mail o contraseña incorrectos.</div>
+    </div>
+    <p style="font-size:12px;margin-top:16px"><a href="#" onclick="showRecovery();return false" style="color:var(--purple)">¿Olvidaste tu contraseña?</a></p>
+    <p style="font-size:11px;color:var(--text3);margin-top:8px">¿No tenés acceso? Contactá al administrador del SGC.</p>
+  </div>
+
+  <!-- PASO 1: pedir código -->
+  <div class="login-card" id="recovery-step1" style="display:none">
+    <div class="login-logo">
+      <div class="av-logo" style="font-size:22px">avenida<span>+</span></div>
+    </div>
+    <h1 class="login-title">Recuperar acceso</h1>
+    <p class="login-sub">Ingresá tu correo. Si está habilitado, te enviaremos un código de 6 dígitos.</p>
+    <div class="login-form">
+      <div>
+        <label>Correo electrónico</label>
+        <input type="email" id="rec-email" placeholder="usuario@empresa.com" onkeydown="if(event.key==='Enter')requestRecoveryCode()">
+      </div>
+      <button class="btn-login" id="btn-rec-request" onclick="requestRecoveryCode()">Enviar código →</button>
+      <div class="login-error" id="rec-error1"></div>
+    </div>
+    <p style="font-size:12px;margin-top:16px"><a href="#" onclick="showLogin();return false" style="color:var(--purple)">← Volver a iniciar sesión</a></p>
+  </div>
+
+  <!-- PASO 2: código + nueva contraseña -->
+  <div class="login-card" id="recovery-step2" style="display:none">
+    <div class="login-logo">
+      <div class="av-logo" style="font-size:22px">avenida<span>+</span></div>
+    </div>
+    <h1 class="login-title">Ingresá el código</h1>
+    <p class="login-sub" id="rec-sub2">Revisá tu correo y escribí el código que recibiste.</p>
+    <div class="login-form">
+      <div>
+        <label>Código de 6 dígitos</label>
+        <input type="text" id="rec-codigo" maxlength="6" placeholder="123456" style="text-align:center;font-size:18px;letter-spacing:4px">
+      </div>
+      <div>
+        <label>Nueva contraseña</label>
+        <input type="password" id="rec-pass-nueva" placeholder="Mínimo 6 caracteres">
+      </div>
+      <div>
+        <label>Repetir nueva contraseña</label>
+        <input type="password" id="rec-pass-rep" placeholder="Repetir contraseña" onkeydown="if(event.key==='Enter')confirmRecovery()">
+      </div>
+      <button class="btn-login" id="btn-rec-confirm" onclick="confirmRecovery()">Cambiar contraseña →</button>
+      <div class="login-error" id="rec-error2"></div>
+      <div style="background:var(--green-light);border-radius:var(--radius);padding:8px 11px;font-size:12px;color:var(--green);margin-top:4px;display:none" id="rec-ok">
+        <i class="ti ti-check" style="font-size:13px;vertical-align:-2px"></i> Contraseña actualizada. Ya podés iniciar sesión.
+      </div>
+    </div>
+    <p style="font-size:12px;margin-top:16px"><a href="#" onclick="showLogin();return false" style="color:var(--purple)">← Volver a iniciar sesión</a></p>
+  </div>
+</div>
+
+<!-- PANTALLA DE REGISTRO (invitación) -->
+<div id="register-screen" style="display:none;flex:1;align-items:center;justify-content:center;background:#F0EEF9;min-height:100vh">
+  <div class="login-card">
+    <div class="login-logo">
+      <div class="av-logo">avenida<span>+</span></div>
+    </div>
+    <div class="login-sub-label">Completar registro</div>
+    <h1 class="login-title" id="reg-title">Bienvenido/a al SGC</h1>
+    <p class="login-sub" id="reg-sub">Completá tus datos para activar tu acceso.</p>
+    <div class="login-form" id="reg-form">
+      <div>
+        <label>Correo electrónico</label>
+        <input type="email" id="reg-email" disabled style="opacity:.6">
+      </div>
+      <div>
+        <label>Área asignada</label>
+        <input type="text" id="reg-area" disabled style="opacity:.6">
+      </div>
+      <div>
+        <label>Nombre completo</label>
+        <input type="text" id="reg-nombre" placeholder="Tu nombre y apellido">
+      </div>
+      <div>
+        <label>Contraseña</label>
+        <input type="password" id="reg-pass" placeholder="Mínimo 6 caracteres">
+      </div>
+      <div>
+        <label>Repetir contraseña</label>
+        <input type="password" id="reg-pass2" placeholder="Repetir contraseña" onkeydown="if(event.key==='Enter')completeRegistration()">
+      </div>
+      <button class="btn-login" id="btn-register" onclick="completeRegistration()">Activar mi acceso →</button>
+      <div class="login-error" id="reg-error"></div>
+      <div style="background:var(--green-light);border-radius:var(--radius);padding:8px 11px;font-size:12px;color:var(--green);margin-top:4px;display:none" id="reg-ok">
+        <i class="ti ti-check"></i> ¡Registro completado! Ya podés iniciar sesión.
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="app" id="main-app" style="display:none">
+<button class="btn sm" onclick="toggleTheme()" title="Cambiar tema" style="position:absolute;top:8px;right:8px;z-index:50;width:30px;height:30px;padding:0;border-radius:50%;background:var(--bg2)" id="theme-toggle-btn">
+  <i class="ti ti-moon" id="theme-toggle-icon" style="font-size:14px"></i>
+</button>
+
+<!-- SIDEBAR -->
+<div class="sidebar">
+  <div class="sgc-header">
+    <div class="av-sidebar-logo">avenida<span>+</span></div>
+    <div class="av-sidebar-sub">Sistema de Gestión de Calidad</div>
+    <div style="margin-top:10px"><span class="sgc-tag">ISO 9001:2015</span></div>
+  </div>
+  <div class="nav-section">
+    <div class="nav-label">Principal</div>
+    <button class="nav-item active" onclick="setView('dashboard')" id="nav-dashboard"><i class="ti ti-layout-dashboard"></i>Dashboard</button>
+    <button class="nav-item" onclick="setView('todos')" id="nav-todos"><i class="ti ti-files"></i>Documentos<span class="nbadge" id="nb-todos">0</span></button>
+    <button class="nav-item" onclick="setView('areas')" id="nav-areas"><i class="ti ti-building"></i>Áreas / Sedes<span class="nbadge" id="nb-areas">0</span></button>
+    <button class="nav-item" onclick="setView('nc')" id="nav-nc"><i class="ti ti-alert-triangle"></i>No conformidades<span class="nbadge err" id="nb-nc">0</span></button>
+    <button class="nav-item" onclick="setView('ac')" id="nav-ac"><i class="ti ti-tool"></i>Acciones correctivas<span class="nbadge" id="nb-ac">0</span></button>
+    <button class="nav-item" onclick="setView('r002')" id="nav-r002"><i class="ti ti-table"></i>Reg. Gestión AV<span class="nbadge warn" id="nb-r002">0</span></button>
+    <button class="nav-item" onclick="setView('tareas')" id="nav-tareas"><i class="ti ti-checklist"></i>Tareas<span class="nbadge" id="nb-tareas">0</span></button>
+    <button class="nav-item" onclick="setView('log')" id="nav-log"><i class="ti ti-history"></i>Log de actividad</button>
+    <button class="nav-item" onclick="setView('usuarios')" id="nav-usuarios" style="display:none"><i class="ti ti-users"></i>Usuarios<span class="nbadge" id="nb-usuarios">0</span></button>
+    <button class="nav-item" onclick="setView('gestion-areas')" id="nav-gestion-areas" style="display:none"><i class="ti ti-map-pin"></i>Gestión de áreas<span class="nbadge" id="nb-gareas">0</span></button>
+  </div>
+  <div class="nav-section">
+    <div class="nav-label">Estado</div>
+    <button class="nav-item" onclick="setView('revision')" id="nav-revision"><i class="ti ti-clock"></i>En revisión<span class="nbadge warn" id="nb-rev">0</span></button>
+    <button class="nav-item" onclick="setView('vigentes')" id="nav-vigentes"><i class="ti ti-circle-check"></i>Vigentes<span class="nbadge ok" id="nb-vig">0</span></button>
+    <button class="nav-item" onclick="setView('obsoletos')" id="nav-obsoletos"><i class="ti ti-archive"></i>Obsoletos<span class="nbadge" id="nb-obs">0</span></button>
+  </div>
+  <div class="nav-section">
+    <div class="nav-label">Cláusulas ISO</div>
+    <button class="nav-item" onclick="setView('c4')" id="nav-c4"><i class="ti ti-building"></i>4. Contexto</button>
+    <button class="nav-item" onclick="setView('c5')" id="nav-c5"><i class="ti ti-users"></i>5. Liderazgo</button>
+    <button class="nav-item" onclick="setView('c6')" id="nav-c6"><i class="ti ti-target"></i>6. Planificación</button>
+    <button class="nav-item" onclick="setView('c7')" id="nav-c7"><i class="ti ti-tool"></i>7. Apoyo</button>
+    <button class="nav-item" onclick="setView('c8')" id="nav-c8"><i class="ti ti-settings"></i>8. Operación</button>
+    <button class="nav-item" onclick="setView('c9')" id="nav-c9"><i class="ti ti-chart-bar"></i>9. Evaluación</button>
+    <button class="nav-item" onclick="setView('c10')" id="nav-c10"><i class="ti ti-refresh"></i>10. Mejora</button>
+  </div>
+</div>
+
+<!-- MAIN -->
+<div class="main">
+
+  <!-- DASHBOARD -->
+  <div id="view-dashboard" class="view" style="display:flex;flex-direction:column;flex:1;overflow:hidden">
+    <div class="topbar">
+      <span class="topbar-title">Dashboard SGC</span>
+      <button class="btn" onclick="exportExcel()"><i class="ti ti-table-export"></i>Exportar Excel</button>
+      <button class="btn primary" onclick="openDocModal()"><i class="ti ti-plus"></i>Nuevo doc</button>
+      <div class="user-chip" onclick="openPerfil()" title="Mi perfil" id="user-chip">
+        <div class="user-avatar-initials" id="user-avatar-initials">?</div>
+        <span style="font-size:11px" id="user-chip-name">Usuario</span>
+        <span class="role-badge" id="user-chip-role">Usuario</span>
+      </div>
+      <button class="btn sm" onclick="logout()" title="Cerrar sesión" style="padding:0 8px"><i class="ti ti-logout" style="font-size:14px"></i></button>
+    </div>
+    <div class="content" id="dashboard-content"><div class="loading"><div class="spinner"></div>Cargando datos...</div></div>
+  </div>
+
+  <!-- DOCUMENTOS -->
+  <div id="view-todos" class="view" style="display:none;flex-direction:column;flex:1;overflow:hidden">
+    <div class="topbar">
+      <input type="text" id="search" placeholder="Buscar documentos..." oninput="renderDocs()">
+      <select id="filter-area" onchange="renderDocs()"><option value="">Todas las áreas</option></select>
+      <button class="btn" onclick="exportExcel()"><i class="ti ti-table-export"></i>Excel</button>
+      <button class="btn primary" onclick="openDocModal()"><i class="ti ti-plus"></i>Nuevo doc</button>
+    </div>
+    <div class="content">
+      <div class="stats-row" style="grid-template-columns:repeat(4,1fr)">
+        <div class="stat-card"><div class="sl">Total</div><div class="sv" id="s-total">0</div></div>
+        <div class="stat-card"><div class="sl">Vigentes</div><div class="sv" id="s-vig" style="color:var(--green)">0</div></div>
+        <div class="stat-card"><div class="sl">En revisión</div><div class="sv" id="s-rev" style="color:var(--amber)">0</div></div>
+        <div class="stat-card"><div class="sl">Borradores</div><div class="sv" id="s-bor" style="color:var(--blue)">0</div></div>
+      </div>
+      <table class="tbl">
+        <thead><tr>
+          <th style="width:90px">Código</th><th>Título</th>
+          <th style="width:95px">Área</th><th style="width:44px;text-align:center">Ver.</th>
+          <th style="width:95px">Aprobador</th>
+          <th style="width:105px">Estado</th><th style="width:96px;text-align:right">Acc.</th>
+        </tr></thead>
+        <tbody id="doc-tbody"></tbody>
+      </table>
+      <div id="empty-msg" class="empty" style="display:none"><i class="ti ti-file-off" style="font-size:28px;display:block;margin-bottom:8px"></i>Sin documentos.</div>
+    </div>
+  </div>
+
+  <!-- ÁREAS -->
+  <div id="view-areas" class="view" style="display:none;flex-direction:column;flex:1;overflow:hidden">
+    <div class="topbar"><span class="topbar-title">Semáforo por área / sede</span></div>
+    <div class="content" id="areas-content"></div>
+  </div>
+
+  <!-- NC -->
+  <div id="view-nc" class="view" style="display:none;flex-direction:column;flex:1;overflow:hidden">
+    <div class="topbar">
+      <span class="topbar-title">No conformidades</span>
+      <button class="btn primary" onclick="openNcModal()"><i class="ti ti-plus"></i>Nueva NC</button>
+    </div>
+    <div class="content" id="nc-content"></div>
+  </div>
+
+  <!-- LOG -->
+  <!-- Reg. Gestión AV REGISTRO UNIFICADO -->
+  <div id="view-r002" class="view" style="display:none;flex-direction:column;flex:1;overflow:hidden">
+    <div class="topbar">
+      <span class="topbar-title">Reg. Gestión AV — Registro de gestión</span>
+      <select id="r002-filter-tipo" onchange="renderR002()" style="height:30px;border:0.5px solid var(--border2);border-radius:var(--radius);padding:0 7px;font-size:12px;background:var(--bg2);color:var(--text)">
+        <option value="">Todos los tipos</option>
+        <option value="NC">NC — No Conformidad</option>
+        <option value="AC">AC — Acción Correctiva</option>
+        <option value="OM">OM — Oportunidad de Mejora</option>
+        <option value="OBS">OBS — Observación</option>
+        <option value="AP">AP — Acción Preventiva</option>
+        <option value="QRyS">QRyS — Queja y Reclamo</option>
+        <option value="Otro">Otro</option>
+      </select>
+      <button class="btn" onclick="exportR002()"><i class="ti ti-table-export"></i>Exportar Reg. Gestión AV</button>
+      <button class="btn primary" onclick="openR002Modal()"><i class="ti ti-plus"></i>Nueva entrada</button>
+    </div>
+    <div class="content" id="r002-content"></div>
+  </div>
+
+  <!-- ACCIONES CORRECTIVAS -->
+  <div id="view-ac" class="view" style="display:none;flex-direction:column;flex:1;overflow:hidden">
+    <div class="topbar">
+      <span class="topbar-title">Acciones correctivas</span>
+      <button class="btn primary" onclick="openAcModal()"><i class="ti ti-plus"></i>Nueva acción</button>
+    </div>
+    <div class="content" id="ac-content"></div>
+  </div>
+
+  <div id="view-log" class="view" style="display:none;flex-direction:column;flex:1;overflow:hidden">
+    <div class="topbar"><span class="topbar-title">Log de actividad</span></div>
+    <div class="content" id="log-content"></div>
+  </div>
+
+  <!-- TAREAS (kanban) -->
+  <div id="view-tareas" class="view" style="display:none;flex-direction:column;flex:1;overflow:hidden">
+    <div class="topbar">
+      <span class="topbar-title">Tareas</span>
+      <button class="btn primary" onclick="openTareaModal()"><i class="ti ti-plus"></i>Nueva tarea</button>
+    </div>
+    <div class="content" style="overflow:hidden;display:flex;flex-direction:column">
+      <div class="kanban" id="kanban-board"></div>
+    </div>
+  </div>
+
+  <!-- DETALLE DE TAREA -->
+  <div id="view-tarea-detail" class="view" style="display:none;flex-direction:column;flex:1;overflow:hidden">
+    <div class="topbar">
+      <button class="btn" onclick="setView('tareas')"><i class="ti ti-arrow-left"></i>Volver</button>
+      <span style="font-size:12px;color:var(--text2);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" id="tarea-detail-bc"></span>
+      <button class="btn sm" onclick="openTareaModal(selectedTareaId)"><i class="ti ti-edit"></i>Editar</button>
+      <button class="btn sm danger" onclick="deleteTarea(selectedTareaId)"><i class="ti ti-trash"></i></button>
+    </div>
+    <div class="content"><div id="tarea-detail-content"></div></div>
+  </div>
+
+  <!-- DETALLE -->
+  <div id="view-detail" class="view" style="display:none;flex-direction:column;flex:1;overflow:hidden">
+    <div class="topbar">
+      <button class="btn" onclick="backFromDetail()"><i class="ti ti-arrow-left"></i>Volver</button>
+      <span style="font-size:12px;color:var(--text2);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" id="detail-bc"></span>
+      <button class="btn sm" onclick="openDocModal(selectedDocId)"><i class="ti ti-edit"></i>Editar</button>
+      <button class="btn sm" onclick="openNewVersion()"><i class="ti ti-git-branch"></i>Nueva versión</button>
+      <button class="btn sm" onclick="openNcModal(selectedDocId)"><i class="ti ti-alert-triangle"></i>NC</button>
+      <button class="btn sm danger" id="btn-delete-doc" onclick="deleteDoc(selectedDocId)" style="display:none"><i class="ti ti-trash"></i></button>
+    </div>
+    <div class="content"><div id="detail-content"></div></div>
+  </div>
+
+  <!-- ÁREA DETALLE -->
+  <div id="view-area-detail" class="view" style="display:none;flex-direction:column;flex:1;overflow:hidden">
+    <div class="topbar">
+      <button class="btn" onclick="setView('areas')"><i class="ti ti-arrow-left"></i>Volver</button>
+      <span class="topbar-title" id="area-detail-title"></span>
+      <button class="btn primary" onclick="openDocModal()"><i class="ti ti-plus"></i>Nuevo doc</button>
+    </div>
+    <div class="content" id="area-detail-content"></div>
+  </div>
+
+  <!-- USUARIOS (solo admin) -->
+  <div id="view-usuarios" class="view" style="display:none;flex-direction:column;flex:1;overflow:hidden">
+    <div class="topbar">
+      <span class="topbar-title">Usuarios habilitados</span>
+      <button class="btn" onclick="openInviteModal()"><i class="ti ti-mail-forward"></i>Invitar usuario</button>
+      <button class="btn primary" onclick="openUserModal()"><i class="ti ti-user-plus"></i>Agregar manual</button>
+    </div>
+    <div class="content" id="usuarios-content"></div>
+  </div>
+
+  <!-- GESTIÓN DE ÁREAS (solo admin) -->
+  <div id="view-gestion-areas" class="view" style="display:none;flex-direction:column;flex:1;overflow:hidden">
+    <div class="topbar">
+      <span class="topbar-title">Gestión de áreas / sedes</span>
+      <button class="btn primary" onclick="openAreaModal()"><i class="ti ti-plus"></i>Agregar área</button>
+    </div>
+    <div class="content" id="gestion-areas-content"></div>
+  </div>
+
+</div><!-- /main -->
+</div><!-- /app / main-app -->
+
+<!-- MODAL DOC -->
+<div class="modal-bg" id="modal-doc">
+<div class="modal">
+  <h3 id="modal-doc-title">Nuevo documento — SGC</h3>
+  <div class="field-row">
+    <div class="field"><label>Código</label><input id="f-codigo" placeholder="SGC-PR-001"></div>
+    <div class="field"><label>Versión</label><input id="f-version" value="1.0"></div>
+  </div>
+  <div class="field"><label>Título del documento</label><input id="f-titulo" placeholder="Nombre del documento"></div>
+  <div class="field-row">
+    <div class="field"><label>Área / Sede</label><input id="f-area" list="areas-dl" placeholder="Calidad, RRHH..."><datalist id="areas-dl"></datalist></div>
+    <div class="field"><label>Cláusula ISO</label>
+      <select id="f-clausula">
+        <option value="c4">4. Contexto</option><option value="c5">5. Liderazgo</option>
+        <option value="c6">6. Planificación</option><option value="c7">7. Apoyo</option>
+        <option value="c8" selected>8. Operación</option><option value="c9">9. Evaluación</option>
+        <option value="c10">10. Mejora</option>
+      </select>
+    </div>
+  </div>
+  <div class="field-row">
+    <div class="field"><label>Tipo</label>
+      <select id="f-tipo"><option>Procedimiento</option><option>Instructivo</option><option>Política</option><option>Registro</option><option>Manual</option><option>Formulario</option><option>Plan</option></select>
+    </div>
+    <div class="field"><label>Estado</label>
+      <select id="f-estado"><option value="borrador">Borrador</option><option value="revision">En revisión</option><option value="aprobado">Aprobado</option><option value="vigente">Vigente</option><option value="obsoleto">Obsoleto</option></select>
+    </div>
+  </div>
+  <div class="field-row">
+    <div class="field"><label>Responsable</label><input id="f-responsable" placeholder="Nombre"></div>
+    <div class="field"><label>Aprobador</label><input id="f-aprobador" placeholder="Nombre"></div>
+  </div>
+  <div class="field"><label>Comentario del aprobador</label><textarea id="f-comentario" placeholder="Observaciones, motivo de revisión o aprobación..." style="min-height:44px"></textarea></div>
+  <div class="field"><label>Link al archivo (Drive, SharePoint, etc.)</label><input id="f-link" placeholder="https://drive.google.com/..."></div>
+  <div class="field"><label>Descripción / alcance</label><textarea id="f-desc" placeholder="Describí brevemente el alcance..."></textarea></div>
+  <div style="display:flex;align-items:center;gap:9px;padding:8px 10px;background:var(--purple-light);border-radius:var(--radius);margin-bottom:10px">
+    <input type="checkbox" id="f-publico" style="width:16px;height:16px;accent-color:var(--purple);cursor:pointer">
+    <div>
+      <label for="f-publico" style="font-size:12px;font-weight:600;color:var(--purple);cursor:pointer">Visible para todos los usuarios</label>
+      <div style="font-size:10px;color:var(--text3);margin-top:1px">Todos los usuarios del SGC pueden ver este documento, independientemente de su área</div>
+    </div>
+  </div>
+  <div class="modal-footer">
+    <button class="btn" onclick="closeModal('modal-doc')">Cancelar</button>
+    <button class="btn primary" id="btn-save-doc" onclick="saveDoc()"><i class="ti ti-device-floppy"></i>Guardar en SGC</button>
+  </div>
+</div>
+</div>
+
+<!-- MODAL NC -->
+<div class="modal-bg" id="modal-nc">
+<div class="modal">
+  <h3 id="modal-nc-title">Registrar no conformidad</h3>
+
+  <div class="field-row">
+    <div class="field"><label>Área que detectó</label>
+      <select id="nc-area-detecta"></select>
+    </div>
+    <div class="field"><label>Detectada por</label>
+      <input id="nc-detectada-por" placeholder="Nombre de quien detectó">
+    </div>
+  </div>
+
+  <div class="field-row">
+    <div class="field"><label>Origen</label>
+      <select id="nc-origen">
+        <option value="interno">Interno</option>
+        <option value="externo">Externo</option>
+        <option value="norma">Requisito de la norma</option>
+      </select>
+    </div>
+    <div class="field"><label>¿Viene de un reclamo o queja?</label>
+      <select id="nc-reclamo">
+        <option value="no">No</option>
+        <option value="si">Sí — reclamo de cliente</option>
+        <option value="queja">Sí — queja interna</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="field-row">
+    <div class="field"><label>¿Es una NC reincidente?</label>
+      <select id="nc-reincidente">
+        <option value="no">No — primera vez</option>
+        <option value="si">Sí — ya ocurrió antes</option>
+        <option value="posible">Posible — a confirmar</option>
+      </select>
+    </div>
+    <div class="field" id="nc-reincidente-ref-field" style="display:none">
+      <label>NC anterior relacionada (nº)</label>
+      <input id="nc-reincidente-ref" placeholder="Ej: 3, 7...">
+    </div>
+  </div>
+
+  <div class="field"><label>Requisito no cumplido</label>
+    <textarea id="nc-requisito" placeholder="Describí el requisito que no se cumplió (interno, externo o de la norma ISO)..." style="min-height:48px"></textarea>
+  </div>
+
+  <div class="field"><label>Descripción de la no conformidad</label>
+    <textarea id="nc-desc" placeholder="Describí el desvío o incumplimiento detectado..."></textarea>
+  </div>
+
+  <div class="field"><label>Análisis de causa raíz <span style="font-size:10px;color:var(--text3);font-weight:400">(podés seleccionar más de una)</span></label>
+    <select id="nc-causa-add" onchange="ncAddCausa()">
+      <option value="">+ Agregar causa...</option>
+      <option value="Proceso no definido o incompleto">Proceso no definido o incompleto</option>
+      <option value="Incumplimiento del procedimiento">Incumplimiento del procedimiento</option>
+      <option value="Falta de capacitación / competencia">Falta de capacitación / competencia</option>
+      <option value="Error humano operativo">Error humano operativo</option>
+      <option value="Falla de comunicación">Falla de comunicación</option>
+      <option value="Falla del sistema / herramienta">Falla del sistema / herramienta</option>
+      <option value="Datos incorrectos o incompletos">Datos incorrectos o incompletos</option>
+      <option value="Falla de proveedor externo">Falla de proveedor externo</option>
+      <option value="Falta de control / seguimiento">Falta de control / seguimiento</option>
+      <option value="Planificación insuficiente">Planificación insuficiente</option>
+      <option value="Cambio no gestionado">Cambio no gestionado</option>
+      <option value="Requisito externo no identificado">Requisito externo no identificado</option>
+      <option value="Otro">Otro</option>
+    </select>
+    <div id="nc-causas-chips" style="display:flex;flex-wrap:wrap;gap:5px;margin-top:6px"></div>
+  </div>
+
+  <div class="field"><label>Detalle de la causa raíz</label>
+    <textarea id="nc-causa-detalle" placeholder="Explicá con más detalle la causa o causas identificadas..." style="min-height:52px"></textarea>
+  </div>
+
+  <div class="field-row">
+    <div class="field"><label>Responsable de la acción</label>
+      <input id="nc-resp" placeholder="Nombre">
+    </div>
+    <div class="field"><label>Estado</label>
+      <select id="nc-estado">
+        <option value="abierta">Abierta</option>
+        <option value="en_proceso">En proceso</option>
+        <option value="cerrada">Cerrada</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="field-row">
+    <div class="field"><label>Evaluación de eficacia</label>
+      <select id="nc-eficaz">
+        <option value="">— Pendiente —</option>
+        <option value="Sí">Sí — fue eficaz</option>
+        <option value="No">No — requiere nueva acción</option>
+      </select>
+    </div>
+    <div class="field"><label>Fecha de cierre / revisión</label>
+      <input type="date" id="nc-fecha-cierre">
+    </div>
+  </div>
+
+  <div class="field"><label>Documento relacionado (opcional)</label>
+    <select id="nc-docid"><option value="">— Sin vincular —</option></select>
+  </div>
+
+  <div class="field"><label>Acción correctiva propuesta</label>
+    <textarea id="nc-accion" placeholder="Describí la acción correctiva..."></textarea>
+  </div>
+
+  <div class="field"><label>Acción lograda / Resultado</label>
+    <textarea id="nc-accion-lograda" placeholder="Describí el resultado obtenido al cerrar la NC..." style="min-height:44px"></textarea>
+  </div>
+
+  <div class="modal-footer">
+    <button class="btn" onclick="closeModal('modal-nc')">Cancelar</button>
+    <button class="btn danger" id="btn-save-nc" onclick="saveNc()"><i class="ti ti-alert-triangle"></i>Registrar NC</button>
+  </div>
+</div>
+</div>
+
+<!-- MODAL CONFIG -->
+<div class="modal-bg" id="modal-config">
+<div class="modal">
+  <h3><i class="ti ti-settings" style="font-size:16px;vertical-align:-2px;margin-right:6px"></i>Configurar conexión al Sheet</h3>
+  <p style="font-size:12px;color:var(--text2);margin-bottom:14px">Pegá la URL de tu Apps Script para conectar el SGC con Google Sheets.</p>
+  <div class="field">
+    <label>URL del Apps Script (Web App)</label>
+    <input id="cfg-url" placeholder="https://script.google.com/macros/s/.../exec" style="font-size:11px">
+  </div>
+  <div class="modal-footer">
+    <button class="btn" onclick="closeModal('modal-config')">Cancelar</button>
+    <button class="btn primary" onclick="saveConfig()"><i class="ti ti-check"></i>Guardar configuración</button>
+  </div>
+</div>
+</div>
+
+<!-- MODAL INVITACIÓN -->
+<div class="modal-bg" id="modal-invite">
+<div class="modal" style="width:420px">
+  <h3><i class="ti ti-mail-forward" style="font-size:16px;vertical-align:-2px;margin-right:6px"></i>Invitar usuario</h3>
+  <p style="font-size:12px;color:var(--text2);margin-bottom:14px">El usuario recibirá un mail para completar su nombre y contraseña. El link es válido por 7 días.</p>
+  <div class="field"><label>Correo electrónico</label>
+    <input type="email" id="inv-email" placeholder="usuario@avenida.com">
+  </div>
+  <div class="field-row">
+    <div class="field"><label>Rol</label>
+      <select id="inv-rol">
+        <option value="usuario">Usuario</option>
+        <option value="admin">Administrador</option>
+      </select>
+    </div>
+    <div class="field"><label>Área asignada</label>
+      <select id="inv-area"></select>
+    </div>
+  </div>
+  <div class="login-error" id="inv-error" style="display:none;margin-top:0"></div>
+  <div style="background:var(--green-light);border-radius:var(--radius);padding:8px 11px;font-size:12px;color:var(--green);margin-top:6px;display:none" id="inv-ok">
+    <i class="ti ti-check"></i> Invitación enviada correctamente.
+  </div>
+  <div class="modal-footer">
+    <button class="btn" onclick="closeModal('modal-invite')">Cancelar</button>
+    <button class="btn primary" id="btn-send-invite" onclick="sendInvitation()"><i class="ti ti-send"></i>Enviar invitación</button>
+  </div>
+</div>
+</div>
+
+<!-- MODAL USUARIO -->
+<div class="modal-bg" id="modal-user">
+<div class="modal">
+  <h3 id="modal-user-title">Agregar usuario</h3>
+  <div class="field"><label>Nombre completo</label><input id="u-nombre" placeholder="Ana García"></div>
+  <div class="field"><label>Correo electrónico</label><input type="email" id="u-email" placeholder="ana@empresa.com"></div>
+  <div class="field"><label>Contraseña</label><input type="password" id="u-pass" placeholder="Mínimo 6 caracteres"></div>
+  <div class="field-row">
+    <div class="field">
+      <label>Rol</label>
+      <select id="u-rol" onchange="onRolChange()">
+        <option value="usuario">Usuario — solo su área</option>
+        <option value="admin">Administrador — ve todas las áreas</option>
+      </select>
+    </div>
+    <div class="field" id="u-area-field">
+      <label>Área asignada</label>
+      <select id="u-area"></select>
+    </div>
+  </div>
+  <div class="login-error" id="user-modal-error" style="display:none;margin-top:0"></div>
+  <div class="modal-footer">
+    <button class="btn" onclick="closeModal('modal-user')">Cancelar</button>
+    <button class="btn primary" onclick="saveUser()"><i class="ti ti-user-check"></i>Guardar usuario</button>
+  </div>
+</div>
+</div>
+
+<!-- MODAL ÁREA -->
+<div class="modal-bg" id="modal-area">
+<div class="modal">
+  <h3 id="modal-area-title">Agregar área / sede</h3>
+  <div class="field"><label>Nombre del área</label><input id="a-nombre" placeholder="Ej: Producción, RRHH, Calidad..."></div>
+  <div class="field"><label>Responsable del área</label><input id="a-responsable" placeholder="Nombre del responsable"></div>
+  <div class="field"><label>Descripción (opcional)</label><textarea id="a-desc" placeholder="Breve descripción del área..." style="min-height:52px"></textarea></div>
+  <div class="login-error" id="area-modal-error" style="display:none;margin-top:0"></div>
+  <div class="modal-footer">
+    <button class="btn" onclick="closeModal('modal-area')">Cancelar</button>
+    <button class="btn primary" onclick="saveArea()"><i class="ti ti-map-pin"></i>Guardar área</button>
+  </div>
+</div>
+</div>
+
+<!-- MODAL Reg. Gestión AV ENTRADA -->
+<div class="modal-bg" id="modal-r002">
+<div class="modal">
+  <h3 id="modal-r002-title">Nueva entrada — Reg. Gestión AV</h3>
+
+  <!-- Campos base (todos los tipos) -->
+  <div class="field-row">
+    <div class="field"><label>Tipo</label>
+      <select id="r002-tipo" onchange="onR002TipoChange()">
+        <option value="NC">NC — No Conformidad</option>
+        <option value="AC">AC — Acción Correctiva</option>
+        <option value="OM">OM — Oportunidad de Mejora</option>
+        <option value="OBS">OBS — Observación</option>
+        <option value="AP">AP — Acción Preventiva</option>
+        <option value="QRyS">QRyS — Queja o Reclamo</option>
+        <option value="Otro">Otro</option>
+      </select>
+    </div>
+    <div class="field"><label>Fecha de alta</label>
+      <input type="date" id="r002-fecha">
+    </div>
+  </div>
+
+  <div class="field"><label>Descripción</label>
+    <textarea id="r002-desc" placeholder="Describí el hallazgo, observación o acción..."></textarea>
+  </div>
+
+  <div class="field-row">
+    <div class="field"><label>Responsable</label>
+      <input id="r002-resp" placeholder="Nombre">
+    </div>
+    <div class="field"><label>Estado</label>
+      <select id="r002-estado">
+        <option value="Abierta">Abierta</option>
+        <option value="En proceso">En proceso</option>
+        <option value="Cerrada">Cerrada</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="field-row">
+    <div class="field"><label>Procedencia / Origen</label>
+      <select id="r002-procedencia">
+        <option value="">— Seleccionar —</option>
+        <option value="Auditoría interna">Auditoría interna</option>
+        <option value="Auditoría externa">Auditoría externa</option>
+        <option value="Reclamo de cliente">Reclamo de cliente</option>
+        <option value="Revisión por la dirección">Revisión por la dirección</option>
+        <option value="Control de proceso">Control de proceso</option>
+        <option value="Indicador de gestión">Indicador de gestión</option>
+        <option value="Otro">Otro</option>
+      </select>
+    </div>
+    <div class="field"><label>Eficaz</label>
+      <select id="r002-eficaz">
+        <option value="">— Pendiente —</option>
+        <option value="Sí">Sí</option>
+        <option value="No">No</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- Campos específicos NC -->
+  <div id="r002-nc-fields" style="display:none">
+    <hr style="border:none;border-top:0.5px solid var(--border);margin:8px 0">
+    <div style="font-size:11px;font-weight:500;color:var(--purple);margin-bottom:8px;text-transform:uppercase;letter-spacing:.04em">Datos de No Conformidad</div>
+    <div class="field-row">
+      <div class="field"><label>Área que detectó</label>
+        <select id="r002-area-detecta"></select>
+      </div>
+      <div class="field"><label>Detectada por</label>
+        <input id="r002-detectada-por" placeholder="Nombre de quien detectó">
+      </div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>Origen NC</label>
+        <select id="r002-origen-nc">
+          <option value="interno">Interno</option>
+          <option value="externo">Externo</option>
+          <option value="norma">Requisito de la norma</option>
+        </select>
+      </div>
+      <div class="field"><label>¿Reclamo o queja?</label>
+        <select id="r002-reclamo">
+          <option value="no">No</option>
+          <option value="si">Sí — reclamo de cliente</option>
+          <option value="queja">Sí — queja interna</option>
+        </select>
+      </div>
+    </div>
+    <div class="field"><label>Requisito no cumplido</label>
+      <textarea id="r002-requisito" placeholder="Describí el requisito que no se cumplió..." style="min-height:44px"></textarea>
+    </div>
+    <div class="field">
+      <label>Causa raíz <span style="font-size:10px;color:var(--text3);font-weight:400">(podés seleccionar más de una)</span></label>
+      <select id="r002-causa-add" onchange="r002AddCausa()">
+        <option value="">+ Agregar causa...</option>
+        <option value="Proceso no definido o incompleto">Proceso no definido o incompleto</option>
+        <option value="Incumplimiento del procedimiento">Incumplimiento del procedimiento</option>
+        <option value="Falta de capacitación / competencia">Falta de capacitación / competencia</option>
+        <option value="Error humano operativo">Error humano operativo</option>
+        <option value="Falla de comunicación">Falla de comunicación</option>
+        <option value="Falla del sistema / herramienta">Falla del sistema / herramienta</option>
+        <option value="Datos incorrectos o incompletos">Datos incorrectos o incompletos</option>
+        <option value="Falla de proveedor externo">Falla de proveedor externo</option>
+        <option value="Falta de control / seguimiento">Falta de control / seguimiento</option>
+        <option value="Planificación insuficiente">Planificación insuficiente</option>
+        <option value="Cambio no gestionado">Cambio no gestionado</option>
+        <option value="Requisito externo no identificado">Requisito externo no identificado</option>
+        <option value="Otro">Otro</option>
+      </select>
+      <div id="r002-causas-chips" style="display:flex;flex-wrap:wrap;gap:5px;margin-top:6px"></div>
+    </div>
+    <div class="field"><label>Detalle de la causa raíz</label>
+      <textarea id="r002-causa-detalle" placeholder="Explicá con más detalle la causa identificada..." style="min-height:44px"></textarea>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>¿Es reincidente?</label>
+        <select id="r002-reincidente" onchange="document.getElementById('r002-reinc-ref-wrap').style.display=this.value!=='no'?'':'none'">
+          <option value="no">No — primera vez</option>
+          <option value="si">Sí — ya ocurrió antes</option>
+          <option value="posible">Posible — a confirmar</option>
+        </select>
+      </div>
+      <div class="field" id="r002-reinc-ref-wrap" style="display:none">
+        <label>NC anterior (nº)</label>
+        <input id="r002-reinc-ref" placeholder="Ej: 3, 7">
+      </div>
+    </div>
+  </div>
+
+  <!-- Campos específicos AC -->
+  <div id="r002-ac-fields" style="display:none">
+    <hr style="border:none;border-top:0.5px solid var(--border);margin:8px 0">
+    <div style="font-size:11px;font-weight:500;color:var(--purple);margin-bottom:8px;text-transform:uppercase;letter-spacing:.04em">Datos de Acción Correctiva</div>
+    <div class="field">
+      <label>NCs relacionadas</label>
+      <div id="r002-ac-ncs-chips" style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:6px"></div>
+      <select id="r002-ac-nc-add" onchange="r002AcAddNc()"><option value="">+ Vincular una NC...</option></select>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>Fecha de compromiso</label>
+        <input type="date" id="r002-fecha-comp">
+      </div>
+      <div class="field"><label>Fecha de cierre real</label>
+        <input type="date" id="r002-fecha-cierre">
+      </div>
+    </div>
+    <div class="field"><label>Evidencia / Resultado</label>
+      <textarea id="r002-evidencia" placeholder="Describí la evidencia de implementación..." style="min-height:44px"></textarea>
+    </div>
+  </div>
+
+  <!-- Campos comunes -->
+  <div class="field"><label>Acción inmediata</label>
+    <textarea id="r002-ainm" placeholder="Acción tomada de forma inmediata..." style="min-height:44px"></textarea>
+  </div>
+  <div class="field"><label>Detalle / Seguimiento</label>
+    <textarea id="r002-detalle" placeholder="Seguimiento, notas adicionales..." style="min-height:44px"></textarea>
+  </div>
+  <div class="field-row">
+    <div class="field"><label>Fecha de revisión</label>
+      <input type="date" id="r002-frev">
+    </div>
+    <div class="field"><label>Fecha de baja</label>
+      <input type="date" id="r002-fbaja">
+    </div>
+  </div>
+  <div class="field"><label>Acción lograda / Resultado</label>
+    <textarea id="r002-logrado" placeholder="Resultado obtenido, evidencia de cierre..." style="min-height:44px"></textarea>
+  </div>
+
+  <div class="login-error" id="r002-error" style="display:none;margin-top:0"></div>
+  <div class="modal-footer">
+    <button class="btn" onclick="closeModal('modal-r002')">Cancelar</button>
+    <button class="btn primary" onclick="saveR002Entry()"><i class="ti ti-device-floppy"></i>Guardar entrada</button>
+  </div>
+</div>
+</div>
+
+<!-- MODAL VINCULAR AC A NC -->
+<div class="modal-bg" id="modal-link-ac">
+<div class="modal" style="width:420px">
+  <h3>Vincular acción correctiva existente</h3>
+  <p style="font-size:12px;color:var(--text2);margin-bottom:12px" id="link-ac-nc-label"></p>
+  <div class="field"><label>Seleccionar acción correctiva</label>
+    <select id="link-ac-select" size="6" style="width:100%;border:0.5px solid var(--border2);border-radius:var(--radius);font-size:12px;background:var(--bg2);color:var(--text);padding:4px"></select>
+  </div>
+  <div class="login-error" id="link-ac-error" style="display:none;margin-top:0"></div>
+  <div class="modal-footer">
+    <button class="btn" onclick="closeModal('modal-link-ac')">Cancelar</button>
+    <button class="btn primary" onclick="confirmLinkAc()"><i class="ti ti-link"></i>Vincular</button>
+  </div>
+</div>
+</div>
+
+<!-- MODAL ACCIÓN CORRECTIVA -->
+<div class="modal-bg" id="modal-ac">
+<div class="modal">
+  <h3 id="modal-ac-title">Nueva acción correctiva</h3>
+  <div class="field"><label>Título de la acción</label>
+    <input id="ac-titulo" placeholder="Ej: Actualizar procedimiento de gestión de incidentes">
+  </div>
+  <div class="field"><label>Descripción / detalle</label>
+    <textarea id="ac-desc" placeholder="Describí qué se va a hacer para corregir el desvío..."></textarea>
+  </div>
+  <div class="field">
+    <label>No conformidades relacionadas</label>
+    <div id="ac-ncs-list" style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:6px"></div>
+    <select id="ac-nc-add" onchange="acAddNc()">
+      <option value="">+ Vincular una NC...</option>
+    </select>
+  </div>
+  <div class="field-row">
+    <div class="field"><label>Responsable</label>
+      <input id="ac-resp" placeholder="Nombre">
+    </div>
+    <div class="field"><label>Estado</label>
+      <select id="ac-estado">
+        <option value="pendiente">Pendiente</option>
+        <option value="en_proceso">En proceso</option>
+        <option value="completada">Completada</option>
+        <option value="cerrada">Cerrada</option>
+      </select>
+    </div>
+  </div>
+  <div class="field-row">
+    <div class="field"><label>Fecha de compromiso</label>
+      <input type="date" id="ac-fecha-comp">
+    </div>
+    <div class="field"><label>Fecha de cierre real</label>
+      <input type="date" id="ac-fecha-cierre">
+    </div>
+  </div>
+  <div class="field"><label>Evidencia / resultado</label>
+    <textarea id="ac-evidencia" placeholder="Describí la evidencia de implementación o el resultado..." style="min-height:48px"></textarea>
+  </div>
+  <div class="field"><label>Evaluación de eficacia</label>
+    <select id="ac-eficaz">
+      <option value="">— Pendiente —</option>
+      <option value="Sí">Sí — fue eficaz</option>
+      <option value="No">No — requiere nueva acción</option>
+    </select>
+  </div>
+  <div class="login-error" id="ac-modal-error" style="display:none;margin-top:0"></div>
+  <div class="modal-footer">
+    <button class="btn" onclick="closeModal('modal-ac')">Cancelar</button>
+    <button class="btn primary" onclick="saveAc()"><i class="ti ti-device-floppy"></i>Guardar acción</button>
+  </div>
+</div>
+</div>
+
+<!-- MODAL TAREA -->
+<div class="modal-bg" id="modal-tarea">
+<div class="modal">
+  <h3 id="modal-tarea-title">Nueva tarea</h3>
+  <div class="field"><label>Título</label><input id="t-titulo" placeholder="Ej: Revisar procedimiento de auditoría"></div>
+  <div class="field"><label>Descripción</label><textarea id="t-desc" placeholder="Detalle de la tarea..." style="min-height:50px"></textarea></div>
+  <div class="field-row">
+    <div class="field"><label>Estado</label>
+      <select id="t-estado">
+        <option value="pendiente">Pendiente</option>
+        <option value="en_progreso">En progreso</option>
+        <option value="revision">En revisión</option>
+        <option value="completada">Completada</option>
+      </select>
+    </div>
+    <div class="field"><label>Prioridad</label>
+      <select id="t-prioridad">
+        <option value="alta">Alta</option>
+        <option value="media" selected>Media</option>
+        <option value="baja">Baja</option>
+      </select>
+    </div>
+  </div>
+  <div class="field-row">
+    <div class="field"><label>Fecha inicio</label><input type="date" id="t-fecha-inicio"></div>
+    <div class="field"><label>Fecha límite</label><input type="date" id="t-fecha-fin"></div>
+  </div>
+  <div class="field-row">
+    <div class="field"><label>Área</label><select id="t-area"></select></div>
+    <div class="field"><label>Documento relacionado</label><select id="t-docid"><option value="">— Sin vincular —</option></select></div>
+  </div>
+  <div class="field">
+    <label>Asignados</label>
+    <select id="t-asignado-add" onchange="addAsignado()"><option value="">+ Agregar persona...</option></select>
+    <div class="assignee-picker" id="t-asignados-list"></div>
+  </div>
+  <div class="login-error" id="tarea-modal-error" style="display:none;margin-top:0"></div>
+  <div class="modal-footer">
+    <button class="btn" onclick="closeModal('modal-tarea')">Cancelar</button>
+    <button class="btn primary" onclick="saveTarea()"><i class="ti ti-device-floppy"></i>Guardar tarea</button>
+  </div>
+</div>
+</div>
+
+<!-- MODAL EXPORTAR -->
+<div class="modal-bg" id="modal-export">
+<div class="modal" style="width:380px">
+  <h3><i class="ti ti-table-export" style="font-size:16px;vertical-align:-2px;margin-right:6px"></i>Exportar a Excel</h3>
+  <div class="field"><label>Alcance de la exportación</label>
+    <select id="exp-area"></select>
+  </div>
+  <div class="modal-footer">
+    <button class="btn" onclick="closeModal('modal-export')">Cancelar</button>
+    <button class="btn primary" onclick="confirmExport()"><i class="ti ti-download"></i>Descargar CSV</button>
+  </div>
+</div>
+</div>
+
+<!-- MODAL PERFIL -->
+<div class="modal-bg" id="modal-perfil">
+<div class="modal">
+  <h3><i class="ti ti-lock" style="font-size:16px;vertical-align:-2px;margin-right:6px"></i>Cambiar contraseña</h3>
+  <div class="field"><label>Contraseña actual</label><input type="password" id="p-pass-actual" placeholder="••••••••"></div>
+  <div class="field"><label>Nueva contraseña</label><input type="password" id="p-pass-nueva" placeholder="Mínimo 6 caracteres"></div>
+  <div class="field"><label>Repetir nueva contraseña</label><input type="password" id="p-pass-rep" placeholder="Repetir contraseña"></div>
+  <div class="login-error" id="perfil-error" style="display:none;margin-top:0"></div>
+  <div style="background:var(--green-light);border-radius:var(--radius);padding:7px 10px;font-size:12px;color:var(--green);margin-top:6px;display:none" id="perfil-ok">
+    <i class="ti ti-check" style="font-size:13px;vertical-align:-2px"></i> Contraseña actualizada correctamente.
+  </div>
+  <div class="modal-footer">
+    <button class="btn" onclick="closeModal('modal-perfil')">Cancelar</button>
+    <button class="btn primary" onclick="guardarPerfil()"><i class="ti ti-lock-check"></i>Cambiar contraseña</button>
+  </div>
+</div>
+</div>
+
+<script>
+// ─── CONFIGURACIÓN ────────────────────────────────────────────────────
+let CURRENT_USER = localStorage.getItem('sgc_user') || 'Usuario';
+
+const CLAUSULAS = {c4:'4. Contexto',c5:'5. Liderazgo',c6:'6. Planificación',c7:'7. Apoyo',c8:'8. Operación',c9:'9. Evaluación',c10:'10. Mejora'};
+const PILL_CLS = {vigente:'pv',revision:'pr',borrador:'pb',obsoleto:'po',aprobado:'pa'};
+const PILL_LBL = {vigente:'Vigente',revision:'En revisión',borrador:'Borrador',obsoleto:'Obsoleto',aprobado:'Aprobado'};
+
+let docs = [], ncs = [], actLog = [], tareas = [], accionesCorrectivas = [], r002Entries = [];
+let editingTareaId = null, selectedTareaId = null, tareaAsignados = [];
+let editingDocId = null, selectedDocId = null, prevView = 'todos';
+let editingAcId = null, editingR002Id = null, editingNcId = null;
+let ncCausasSelected = [];
+let loading = false;
+
+// ─── API via google.script.run ────────────────────────────────────────
+function gsr(fnName, ...args) {
+  return new Promise((resolve) => {
+    let runner = google.script.run
+      .withSuccessHandler(result => {
+        console.log('gsr success', fnName, typeof result, Array.isArray(result) ? result.length : result);
+        if (result === null || result === undefined) { resolve([]); return; }
+        if (typeof result === 'string') {
+          try { resolve(JSON.parse(result)); } catch(e) { resolve(result); }
+        } else { resolve(result); }
+      })
+      .withFailureHandler(err => { console.error('gsr error', fnName, err); resolve(null); });
+    runner[fnName](...args);
+  });
+}
+
+async function apiGet(action) {
+  const fnMap = {
+    getDocs:'sgcGetDocs', getNcs:'sgcGetNcs', getLog:'sgcGetLog',
+    getAreas:'sgcGetAreas', getUsuarios:'sgcGetUsuarios', getTareas:'sgcGetTareas',
+    getAC:'sgcGetAC', getR002:'sgcGetR002'
+  };
+  const fn = fnMap[action];
+  if (!fn) return [];
+  const result = await gsr(fn);
+  return Array.isArray(result) ? result : [];
+}
+
+async function apiPost(action, data) {
+  const fnMap = {
+    saveDoc:'sgcSaveDoc', saveNc:'sgcSaveNc', addLog:'sgcAddLog',
+    saveTarea:'sgcSaveTarea', deleteTarea:'sgcDeleteTarea',
+    saveUsuario:'sgcSaveUsuario', toggleUsuario:'sgcToggleUsuario',
+    deleteUsuario:'sgcDeleteUsuario', saveArea:'sgcSaveArea', deleteArea:'sgcDeleteArea',
+    requestRecovery:'sgcRequestRecovery', verifyRecoveryAndReset:'sgcVerifyRecovery',
+    saveAC:'sgcSaveAC', deleteAC:'sgcDeleteAC',
+    saveR002:'sgcSaveR002', updateNc:'sgcUpdateNc', deleteNc:'sgcDeleteNc', deleteR002:'sgcDeleteR002'
+  };
+  const fn = fnMap[action];
+  if (!fn) return data;
+  if (action === 'requestRecovery') return gsr(fn, data.email);
+  if (action === 'deleteTarea') return gsr(fn, String(data.id));
+  if (action === 'deleteAC') return gsr(fn, String(data.id));
+  return gsr(fn, JSON.stringify(data));
+}
+
+async function loadData() {
+  const dc = document.getElementById('dashboard-content');
+  if (dc) dc.innerHTML = '<div class="loading"><div class="spinner"></div>Cargando desde Google Sheets...</div>';
+  try {
+    // Cargar secuencialmente — google.script.run no funciona bien con Promise.all
+    docs    = await apiGet('getDocs')   || [];
+    ncs     = await apiGet('getNcs')    || [];
+    actLog  = await apiGet('getLog')    || [];
+    tareas  = await apiGet('getTareas') || [];
+    accionesCorrectivas = await apiGet('getAC') || [];
+    r002Entries = await apiGet('getR002') || [];
+    console.log('Datos cargados — docs:', docs.length, 'ncs:', ncs.length, 'ACs:', accionesCorrectivas.length, 'R002:', r002Entries.length);
+    // Cargar áreas en segundo plano
+    getAreas().then(updateAreaDatalist);
+  } catch(e) {
+    console.error('Error cargando datos:', e);
+    docs = []; ncs = []; actLog = []; tareas = [];
+  }
+  renderAll();
+}
+
+async function persistDoc(doc) {
+  const saved = await apiPost('saveDoc', doc);
+  return saved;
+}
+
+async function persistNc(nc) {
+  return apiPost('saveNc', nc);
+}
+
+async function addLog(accion) {
+  actLog.unshift({ usuario: CURRENT_USER, accion, created_at: new Date().toISOString() });
+  if (actLog.length > 100) actLog.pop();
+  apiPost('addLog', { usuario: CURRENT_USER, accion });
+}
+
+// ─── CONFIG ───────────────────────────────────────────────────────────
+// No necesario en Apps Script — la URL se detecta automáticamente
+
+// ─── VISTAS ───────────────────────────────────────────────────────────
+function setView(v) {
+  document.querySelectorAll('.view').forEach(el => el.style.display = 'none');
+  document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+  const navEl = document.getElementById('nav-' + v);
+  if (navEl) navEl.classList.add('active');
+  updateBadges(); updateAreaFilter();
+
+  const show = (id, flex) => {
+    const el = document.getElementById('view-' + id);
+    if (el) el.style.display = flex ? 'flex' : 'block';
+  };
+
+  if (v === 'dashboard') { show('dashboard', true); renderDashboard(); }
+  else if (v === 'todos' || v.startsWith('c') || v === 'revision' || v === 'vigentes' || v === 'obsoletos') { show('todos', true); renderDocs(v); }
+  else if (v === 'areas') { show('areas', true); renderAreas(); }
+  else if (v === 'area-detail') show('area-detail', true);
+  else if (v === 'nc') { show('nc', true); renderNc(); }
+  else if (v === 'ac') { show('ac', true); renderAc(); }
+  else if (v === 'r002') { show('r002', true); renderR002(); }
+  else if (v === 'log') { show('log', true); renderLog(); }
+  else if (v === 'detail') show('detail', true);
+  else if (v === 'usuarios') { show('usuarios', true); renderUsuarios(); }
+  else if (v === 'gestion-areas') { show('gestion-areas', true); renderGestionAreas(); }
+  else if (v === 'tareas') { show('tareas', true); renderKanban(); }
+  else if (v === 'tarea-detail') show('tarea-detail', true);
+}
+
+function renderAll() { updateBadges(); updateAreaFilter(); setView('dashboard'); }
+
+async function updateBadges() {
+  const set = (id, val) => { const el = document.getElementById(id); if(el) el.textContent = val; };
+  const isAdmin = currentSession?.rol === 'admin';
+  const scope = isAdmin ? docs : docs.filter(d => (String(d.publico)==='1'||d.publico===true||d.publico==='true') || String(d.area||'').trim().toLowerCase()===String(currentSession?.area||'').trim().toLowerCase());
+  const scopeIds = scope.map(d => String(d.id));
+  const ncScope = isAdmin ? ncs : ncs.filter(n => scopeIds.includes(String(n.doc_id)));
+  set('nb-todos', scope.length);
+  set('nb-rev', scope.filter(d => d.estado==='revision'||d.estado==='aprobado').length);
+  set('nb-vig', scope.filter(d => d.estado==='vigente').length);
+  set('nb-obs', scope.filter(d => d.estado==='obsoleto').length);
+  const isAdminT = currentSession?.rol === 'admin';
+  const tareasScope = isAdminT ? tareas : tareas.filter(t => t.area === currentSession?.area);
+  set('nb-tareas', tareasScope.filter(t => t.estado !== 'completada').length);
+  set('nb-nc', ncScope.filter(n => n.estado!=='cerrada').length);
+  set('nb-ac', accionesCorrectivas.filter(a => a.estado !== 'cerrada' && a.estado !== 'completada').length);
+  // R002: entradas manuales abiertas
+  set('nb-r002', r002Entries.filter(e => e.estado !== 'Cerrado').length);
+  const areasReg = await getAreas();
+  set('nb-areas', isAdmin ? areasReg.length : 1);
+  set('s-total', scope.length);
+  set('s-vig', scope.filter(d => d.estado==='vigente').length);
+  set('s-rev', scope.filter(d => d.estado==='revision'||d.estado==='aprobado').length);
+  set('s-bor', scope.filter(d => d.estado==='borrador').length);
+}
+
+function updateAreaFilter() {
+  const isAdmin = currentSession?.rol === 'admin';
+  const areas = isAdmin ? [...new Set(docs.map(d => d.area))].sort() : [currentSession?.area].filter(Boolean);
+  const sel = document.getElementById('filter-area');
+  if (sel) {
+    const cur = sel.value;
+    if (isAdmin) sel.innerHTML = '<option value="">Todas las áreas</option>' + areas.map(a => `<option${cur===a?' selected':''}>${a}</option>`).join('');
+    else { sel.innerHTML = areas.map(a => `<option${cur===a?' selected':''}>${a}</option>`).join(''); sel.value = currentSession?.area||''; sel.disabled = true; }
+  }
+  const dl = document.getElementById('areas-dl');
+  if (dl) dl.innerHTML = areas.map(a => `<option value="${a}">`).join('');
+}
+
+// ─── DASHBOARD ────────────────────────────────────────────────────────
+async function renderDashboard() {
+  if (!currentSession) return; // esperar a que haya sesión
+  const isAdmin = currentSession.rol === 'admin';
+  const misDocs = isAdmin ? docs : docs.filter(d => (String(d.publico)==='1'||d.publico===true||d.publico==='true') || String(d.area||'').trim().toLowerCase()===String(currentSession.area||'').trim().toLowerCase());
+
+  const vig = misDocs.filter(d => d.estado==='vigente').length;
+  const rev = misDocs.filter(d => d.estado==='revision'||d.estado==='aprobado').length;
+  const bor = misDocs.filter(d => d.estado==='borrador').length;
+  const misDocIds = misDocs.map(d => String(d.id));
+  const ncOpen = ncs.filter(n => n.estado!=='cerrada' && misDocIds.includes(String(n.doc_id))).length;
+
+  const clausBars = Object.keys(CLAUSULAS).map(c => {
+    const tc = misDocs.filter(d => d.clausula===c).length;
+    const vc = misDocs.filter(d => d.clausula===c && d.estado==='vigente').length;
+    const pct = tc > 0 ? Math.round(vc/tc*100) : 0;
+    const color = pct>=80?'#639922':pct>=50?'#BA7517':'#E24B4A';
+    return `<div class="chart-bar-wrap">
+      <div class="chart-label"><span>${CLAUSULAS[c]}</span><span style="color:var(--text3)">${vc}/${tc} (${pct}%)</span></div>
+      <div class="chart-track"><div class="chart-fill" style="width:${pct}%;background:${color}"></div></div>
+    </div>`;
+  }).join('');
+
+  // Áreas registradas en gestión + áreas que aparecen en docs (por si hay desfasaje)
+  const areasReg = await getAreas();
+  let areaNames = [...new Set([...areasReg.map(a=>a.nombre), ...docs.map(d=>d.area)])].filter(Boolean).sort();
+  if (!isAdmin) areaNames = areaNames.filter(a => a === currentSession?.area);
+
+  const semGrid = areaNames.map(a => {
+    const adocs = docs.filter(d => String(d.area||'').trim().toLowerCase()===String(a||'').trim().toLowerCase());
+    const avig = adocs.filter(d => d.estado==='vigente').length;
+    const arev = adocs.filter(d => d.estado==='revision'||d.estado==='aprobado').length;
+    const abor = adocs.filter(d => d.estado==='borrador').length;
+    const anc = ncs.filter(n => n.estado!=='cerrada' && adocs.find(d => String(d.id)===String(n.doc_id))).length;
+    const pct = adocs.length > 0 ? Math.round(avig/adocs.length*100) : 0;
+    const dotCls = pct>=80?'dot-g':pct>=50?'dot-a':'dot-r';
+    const color = pct>=80?'#639922':pct>=50?'#BA7517':'#E24B4A';
+    return `<div class="semaforo-card" data-area="${a}" onclick="showAreaDetail(this.dataset.area)">
+      <div class="dot ${dotCls}"></div>
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:500;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${a}</div>
+        <div style="background:var(--bg2);border-radius:99px;height:6px;overflow:hidden;margin:4px 0">
+          <div style="width:${pct}%;height:6px;border-radius:99px;background:${color}"></div>
+        </div>
+        <div style="font-size:11px;color:var(--text3)">${adocs.length} docs · ${avig} vigentes · ${arev} en rev. · ${abor} borr.${anc>0?` · <span style="color:var(--red)">${anc} NC</span>`:''}</div>
+      </div>
+      <span style="font-size:15px;font-weight:500;color:${color}">${pct}%</span>
+      <i class="ti ti-chevron-right" style="font-size:13px;color:var(--text3)"></i>
+    </div>`;
+  }).join('');
+
+  const recentLog = actLog.slice(0,5).map(l => {
+    const ts = l.created_at ? l.created_at.slice(0,16).replace('T',' ') : (l.fecha||'');
+    return `<div class="log-item"><span class="log-time">${ts}</span><span>${l.accion}</span></div>`;
+  }).join('');
+
+  document.getElementById('dashboard-content').innerHTML = `
+    ${!isAdmin ? `<div style="background:var(--purple-light);border-radius:var(--radius);padding:8px 12px;margin-bottom:12px;font-size:12px;color:var(--purple-dark);display:flex;align-items:center;gap:7px">
+      <i class="ti ti-map-pin" style="font-size:14px"></i> Viendo el área: <strong>${currentSession.area||'Sin área asignada'}</strong>
+    </div>` : ''}
+    <div class="stats-row" style="grid-template-columns:repeat(5,1fr)">
+      <div class="stat-card"><div class="sl">Total docs</div><div class="sv">${misDocs.length}</div></div>
+      <div class="stat-card"><div class="sl">Vigentes</div><div class="sv" style="color:var(--green)">${vig}</div></div>
+      <div class="stat-card"><div class="sl">En revisión</div><div class="sv" style="color:var(--amber)">${rev}</div></div>
+      <div class="stat-card"><div class="sl">Borradores</div><div class="sv" style="color:var(--blue)">${bor}</div></div>
+      <div class="stat-card"><div class="sl">NC abiertas</div><div class="sv" style="color:var(--red)">${ncOpen}</div></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+      <div>
+        <div class="section-title">Completitud por cláusula ISO</div>
+        ${clausBars}
+      </div>
+      <div>
+        <div class="section-title">${isAdmin?'Semáforo por área':'Tu área'}</div>
+        <div style="display:flex;flex-direction:column;gap:5px">${semGrid||'<p style="font-size:12px;color:var(--text3)">Sin áreas registradas. Agregá una desde Gestión de áreas.</p>'}</div>
+        <div class="section-title" style="margin-top:14px">Actividad reciente</div>
+        ${recentLog||'<p style="font-size:12px;color:var(--text3)">Sin actividad.</p>'}
+      </div>
+    </div>`;
+}
+
+// ─── DOCUMENTOS ───────────────────────────────────────────────────────
+function filteredDocs(v) {
+  v = v || 'todos';
+  const search = (document.getElementById('search')||{}).value||'';
+  const area = (document.getElementById('filter-area')||{}).value||'';
+  const isAdmin = currentSession?.rol === 'admin';
+  return docs.filter(d => {
+    if (!isAdmin && !(String(d.publico)==='1'||d.publico===true||d.publico==='true') && String(d.area||'').trim().toLowerCase()!==String(currentSession?.area||'').trim().toLowerCase()) return false;
+    if (v==='obsoletos') { if (d.estado!=='obsoleto') return false; }
+    else { if (d.estado==='obsoleto') return false; } // ocultar obsoletos del listado general
+    if (v==='revision' && d.estado!=='revision' && d.estado!=='aprobado') return false;
+    if (v==='vigentes' && d.estado!=='vigente') return false;
+    if (v.startsWith('c') && d.clausula!==v) return false;
+    const isPublico = String(d.publico)==='1'||d.publico===true||d.publico==='true';
+    if (area && d.area!==area && !isPublico) return false;
+    if (search) {
+      const s = search.toLowerCase();
+      if (!d.titulo.toLowerCase().includes(s) && !d.codigo.toLowerCase().includes(s) && !(d.area||'').toLowerCase().includes(s)) return false;
+    }
+    return true;
+  });
+}
+
+function renderDocs(forceView) {
+  updateBadges(); updateAreaFilter();
+  const rows = filteredDocs(forceView);
+  const tbody = document.getElementById('doc-tbody');
+  const empty = document.getElementById('empty-msg');
+  if (!rows.length) { if(tbody)tbody.innerHTML=''; if(empty)empty.style.display='block'; return; }
+  if(empty)empty.style.display='none';
+  const ncCount = id => ncs.filter(n => String(n.doc_id)===String(id) && n.estado!=='cerrada').length;
+  if(tbody) tbody.innerHTML = rows.map(d => `
+    <tr>
+      <td><span class="doc-code">${d.codigo||''}</span></td>
+      <td style="cursor:pointer" onclick="showDetail(${d.id})">${d.titulo||''}${ncCount(d.id)>0?`<span class="nc-badge">${ncCount(d.id)} NC</span>`:''}${(d.publico==='1'||d.publico===true)?`<span style="font-size:9px;font-weight:600;padding:1px 6px;border-radius:99px;background:var(--blue-light);color:var(--blue);margin-left:5px;vertical-align:middle"><i class="ti ti-world" style="font-size:9px"></i> Todos</span>`:''}</td>
+      <td><span class="area-chip"><i class="ti ti-building" style="font-size:11px"></i>${d.area||''}</span></td>
+      <td style="text-align:center;font-family:var(--mono);font-size:11px;color:var(--text3)">v${d.version||'1.0'}</td>
+      <td style="font-size:11px;color:var(--text2)">${d.aprobador&&d.aprobador!=='—'?`<span style="display:inline-flex;align-items:center;gap:4px"><span style="width:20px;height:20px;border-radius:50%;background:var(--purple-light);color:var(--purple-dark);font-size:9px;font-weight:600;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0">${(d.aprobador||'').split(' ').map(w=>w[0]).join('').substring(0,2).toUpperCase()}</span>${d.aprobador}</span>`:'<span style="color:var(--text3)">—</span>'}</td>
+      <td><span class="pill ${PILL_CLS[d.estado]||'pb'}">${PILL_LBL[d.estado]||d.estado}</span></td>
+      <td style="text-align:right">
+        <div style="display:flex;gap:4px;justify-content:flex-end;align-items:center">
+          <button class="btn sm" onclick="showDetail(${d.id})" title="Ver detalle"><i class="ti ti-eye"></i></button>
+          <button class="btn sm" onclick="openDocModal(${d.id})" title="Editar"><i class="ti ti-edit"></i></button>
+          ${currentSession?.rol==='admin'?`<div style="width:1px;height:18px;background:var(--border);margin:0 2px"></div><button class="btn sm danger" onclick="deleteDoc(${d.id})" title="Eliminar"><i class="ti ti-trash"></i></button>`:''}
+        </div>
+      </td>
+    </tr>`).join('');
+}
+
+// ─── ÁREAS ────────────────────────────────────────────────────────────
+async function renderAreas() {
+  const isAdmin = currentSession?.rol === 'admin';
+  const areasReg = await getAreas();
+  let areas = [...new Set([...areasReg.map(a=>a.nombre), ...docs.map(d=>d.area)])].filter(Boolean).sort();
+  if (!isAdmin) areas = areas.filter(a => a === currentSession?.area);
+  document.getElementById('areas-content').innerHTML = areas.map(a => {
+    const adocs = docs.filter(d => String(d.area||'').trim().toLowerCase()===String(a||'').trim().toLowerCase());
+    const avig = adocs.filter(d => d.estado==='vigente').length;
+    const arev = adocs.filter(d => d.estado==='revision'||d.estado==='aprobado').length;
+    const abor = adocs.filter(d => d.estado==='borrador').length;
+    const anc = ncs.filter(n => n.estado!=='cerrada' && adocs.find(d => String(d.id)===String(n.doc_id))).length;
+    const pct = adocs.length > 0 ? Math.round(avig/adocs.length*100) : 0;
+    const dotCls = pct>=80?'dot-g':pct>=50?'dot-a':'dot-r';
+    const color = pct>=80?'#639922':pct>=50?'#BA7517':'#E24B4A';
+    return `<div class="semaforo-card" style="margin-bottom:7px" data-area="${a}" onclick="showAreaDetail(this.dataset.area)">
+      <div class="dot ${dotCls}" style="width:13px;height:13px"></div>
+      <div style="flex:1">
+        <div style="font-weight:500;font-size:13px;margin-bottom:4px">${a}</div>
+        <div style="background:var(--bg2);border-radius:99px;height:7px;overflow:hidden;margin-bottom:4px">
+          <div style="width:${pct}%;height:7px;border-radius:99px;background:${color}"></div>
+        </div>
+        <div style="font-size:11px;color:var(--text3);display:flex;gap:10px;flex-wrap:wrap">
+          <span>${adocs.length} docs</span>
+          <span style="color:var(--green)">${avig} vigentes</span>
+          <span style="color:var(--amber)">${arev} en revisión</span>
+          <span style="color:var(--blue)">${abor} borradores</span>
+          ${anc>0?`<span style="color:var(--red)">${anc} NC abiertas</span>`:''}
+        </div>
+      </div>
+      <span style="font-size:18px;font-weight:500;color:${color}">${pct}%</span>
+      <i class="ti ti-chevron-right" style="font-size:14px;color:var(--text3)"></i>
+    </div>`;
+  }).join('') || '<p style="color:var(--text3);padding:20px;font-size:13px">Sin áreas registradas.</p>';
+}
+
+function showAreaDetail(area) {
+  if (!area) return;
+  console.log('showAreaDetail called with:', area, '| docs loaded:', docs.length);
+  document.getElementById('area-detail-title').textContent = area;
+  // Comparación robusta: trim + case-insensitive
+  const adocs = docs.filter(d => String(d.area||'').trim().toLowerCase() === String(area||'').trim().toLowerCase());
+  const ncCount = id => ncs.filter(n => String(n.doc_id)===String(id) && n.estado!=='cerrada').length;
+  const totalNc = adocs.reduce((acc,d) => acc + ncCount(d.id), 0);
+
+  document.getElementById('area-detail-content').innerHTML = `
+    <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
+      <div class="stat-card" style="flex:1"><div class="sl">Documentos</div><div class="sv">${adocs.length}</div></div>
+      <div class="stat-card" style="flex:1"><div class="sl">Vigentes</div><div class="sv" style="color:var(--green)">${adocs.filter(d=>d.estado==='vigente').length}</div></div>
+      <div class="stat-card" style="flex:1"><div class="sl">En revisión</div><div class="sv" style="color:var(--amber)">${adocs.filter(d=>d.estado==='revision'||d.estado==='aprobado').length}</div></div>
+      <div class="stat-card" style="flex:1"><div class="sl">NC abiertas</div><div class="sv" style="color:var(--red)">${totalNc}</div></div>
+    </div>
+    <table class="tbl">
+      <thead><tr>
+        <th style="width:90px">Código</th><th>Título</th>
+        <th style="width:44px;text-align:center">Ver.</th>
+        <th style="width:100px">Aprobador</th>
+        <th style="width:85px">Estado</th>
+        <th style="width:40px"></th>
+      </tr></thead>
+      <tbody>${adocs.map(d=>`
+        <tr>
+          <td><span class="doc-code">${d.codigo}</span></td>
+          <td style="cursor:pointer" onclick="showDetail(${d.id})">${d.titulo}${ncCount(d.id)>0?`<span class="nc-badge">${ncCount(d.id)} NC</span>`:''}</td>
+          <td style="text-align:center;font-family:var(--mono);font-size:11px;color:var(--text3)">v${d.version}</td>
+          <td style="font-size:11px;color:var(--text2)">${d.aprobador&&d.aprobador!=='—'?d.aprobador:'<span style="color:var(--text3)">—</span>'}</td>
+          <td><span class="pill ${PILL_CLS[d.estado]||'pb'}">${PILL_LBL[d.estado]||d.estado}</span></td>
+          <td><button class="btn sm" onclick="showDetail(${d.id})"><i class="ti ti-eye"></i></button></td>
+        </tr>`).join('')||'<tr><td colspan="6" style="text-align:center;color:var(--text3);padding:20px">Sin documentos cargados para esta área.</td></tr>'}
+      </tbody>
+    </table>`;
+  setView('area-detail');
+}
+
+// ─── TAREAS ───────────────────────────────────────────────────────────
+const TAREA_ESTADOS = [
+  {key:'pendiente',   label:'Pendiente',    icon:'ti-circle-dashed'},
+  {key:'en_progreso', label:'En progreso',  icon:'ti-player-play'},
+  {key:'revision',    label:'En revisión',  icon:'ti-clock'},
+  {key:'completada',  label:'Completada',   icon:'ti-circle-check'}
+];
+
+function tareasScope() {
+  const isAdmin = currentSession?.rol === 'admin';
+  return isAdmin ? tareas : tareas.filter(t => t.area === currentSession?.area);
+}
+
+async function renderKanban() {
+  const scope = tareasScope();
+  const board = document.getElementById('kanban-board');
+  const isAdmin = currentSession?.rol === 'admin';
+
+  board.innerHTML = TAREA_ESTADOS.map(col => {
+    const items = scope.filter(t => t.estado === col.key);
+    const cards = items.map(t => {
+      const docRef = docs.find(d => String(d.id)===String(t.doc_id));
+      const asignados = Array.isArray(t.asignados) ? t.asignados : [];
+      const avatars = asignados.slice(0,3).map(n => `<div class="task-avatar" title="${n}">${initials(n)}</div>`).join('');
+      const extra = asignados.length > 3 ? `<div class="task-avatar" style="background:var(--bg3);color:var(--text3)">+${asignados.length-3}</div>` : '';
+      const hoy = new Date().toISOString().slice(0,10);
+      const overdue = t.fecha_fin && t.fecha_fin < hoy && t.estado !== 'completada';
+      return `<div class="task-card" onclick="showTareaDetail(${t.id})">
+        <div class="task-card-title">${t.titulo}</div>
+        ${docRef?`<div style="margin-bottom:5px"><span class="doc-code" style="font-size:10px">${docRef.codigo}</span></div>`:''}
+        <div class="task-card-meta">
+          <span class="prio-dot prio-${t.prioridad||'media'}" title="Prioridad ${t.prioridad}"></span>
+          ${t.fecha_fin?`<span class="task-due ${overdue?'overdue':''}"><i class="ti ti-calendar" style="font-size:11px"></i>${t.fecha_fin}</span>`:''}
+          ${isAdmin?`<span class="area-chip" style="font-size:10px;padding:1px 6px">${t.area||''}</span>`:''}
+          <div class="task-avatars">${avatars}${extra}</div>
+        </div>
+      </div>`;
+    }).join('');
+    return `<div class="kanban-col">
+      <div class="kanban-col-header"><span><i class="ti ${col.icon}" style="font-size:13px;vertical-align:-2px"></i> ${col.label}</span><span>${items.length}</span></div>
+      <div class="kanban-cards">${cards || '<p style="font-size:11px;color:var(--text3);text-align:center;padding:12px 4px">Sin tareas</p>'}</div>
+    </div>`;
+  }).join('');
+}
+
+async function showTareaDetail(id) {
+  selectedTareaId = id;
+  const t = tareas.find(x => String(x.id)===String(id));
+  if (!t) return;
+  document.getElementById('tarea-detail-bc').textContent = t.titulo;
+  const docRef = docs.find(d => String(d.id)===String(t.doc_id));
+  const asignados = Array.isArray(t.asignados) ? t.asignados : [];
+  const comentarios = Array.isArray(t.comentarios) ? t.comentarios : [];
+  const estadoInfo = TAREA_ESTADOS.find(e=>e.key===t.estado) || TAREA_ESTADOS[0];
+
+  const hoy = new Date().toISOString().slice(0,10);
+  const overdue = t.fecha_fin && t.fecha_fin < hoy && t.estado !== 'completada';
+
+  const comentariosHtml = comentarios.map(c => `
+    <div class="comment-item">
+      <div class="comment-av">${initials(c.usuario)}</div>
+      <div class="comment-body">
+        <div class="comment-meta"><strong>${c.usuario}</strong> · ${c.fecha}</div>
+        <div>${c.texto}</div>
+      </div>
+    </div>`).join('');
+
+  document.getElementById('tarea-detail-content').innerHTML = `
+    <h2 style="font-size:15px;font-weight:500;margin-bottom:8px">${t.titulo}</h2>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">
+      <span class="pill pa"><i class="ti ${estadoInfo.icon}" style="font-size:11px;vertical-align:-1px"></i> ${estadoInfo.label}</span>
+      <span class="pill ${t.prioridad==='alta'?'po':''}" style="background:var(--bg2)"><span class="prio-dot prio-${t.prioridad||'media'}" style="display:inline-block;margin-right:4px"></span>Prioridad ${t.prioridad||'media'}</span>
+      <span class="area-chip"><i class="ti ti-building" style="font-size:11px"></i>${t.area||''}</span>
+      ${docRef?`<span class="area-chip" style="cursor:pointer" onclick="showDetail(${docRef.id})"><i class="ti ti-file" style="font-size:11px"></i>${docRef.codigo}</span>`:''}
+    </div>
+    <p style="font-size:12px;color:var(--text2);margin-bottom:12px;white-space:pre-wrap">${t.descripcion||'Sin descripción.'}</p>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:14px">
+      <div>
+        <div class="section-title">Fechas</div>
+        <div style="font-size:12px;color:var(--text2)">
+          ${t.fecha_inicio?`Inicio: ${t.fecha_inicio}<br>`:''}
+          ${t.fecha_fin?`<span class="${overdue?'task-due overdue':''}" style="${overdue?'':'color:var(--text2)'}">Vence: ${t.fecha_fin}${overdue?' (vencida)':''}</span>`:'Sin fecha límite'}
+        </div>
+      </div>
+      <div>
+        <div class="section-title">Asignados</div>
+        <div style="display:flex;flex-wrap:wrap;gap:5px">
+          ${asignados.length ? asignados.map(n=>`<span class="assignee-chip">${initials(n)} ${n}</span>`).join('') : '<span style="font-size:12px;color:var(--text3)">Sin asignar</span>'}
+        </div>
+      </div>
+    </div>
+    <div class="section-title">Comentarios y actividad</div>
+    <div style="margin-bottom:10px">${comentariosHtml || '<p style="font-size:12px;color:var(--text3)">Sin comentarios todavía.</p>'}</div>
+    <div style="display:flex;gap:8px">
+      <input id="tarea-comentario-input" placeholder="Escribir un comentario..." style="flex:1;border:0.5px solid var(--border2);border-radius:var(--radius);padding:7px 10px;font-size:12px;background:var(--bg2);color:var(--text)" onkeydown="if(event.key==='Enter')addComentarioTarea(${t.id})">
+      <button class="btn primary sm" onclick="addComentarioTarea(${t.id})"><i class="ti ti-send"></i></button>
+    </div>`;
+  setView('tarea-detail');
+}
+
+async function addComentarioTarea(id) {
+  const input = document.getElementById('tarea-comentario-input');
+  const texto = input.value.trim();
+  if (!texto) return;
+  const t = tareas.find(x => String(x.id)===String(id));
+  if (!t) return;
+  if (!Array.isArray(t.comentarios)) t.comentarios = [];
+  t.comentarios.push({ usuario: CURRENT_USER, texto, fecha: new Date().toLocaleString('es-AR') });
+  await apiPost('saveTarea', t);
+  await addLog(`Comentó en la tarea "${t.titulo}"`);
+  input.value = '';
+  showTareaDetail(id);
+}
+
+async function deleteTarea(id) {
+  const t = tareas.find(x => String(x.id)===String(id));
+  if (!t) return;
+  if (!confirm(`¿Eliminar la tarea "${t.titulo}"?`)) return;
+  await apiPost('deleteTarea', { id });
+  tareas = tareas.filter(x => String(x.id)!==String(id));
+  await addLog(`Eliminó la tarea: ${t.titulo}`);
+  updateBadges();
+  setView('tareas');
+}
+
+async function openTareaModal(id) {
+  editingTareaId = id || null;
+  const t = id ? tareas.find(x=>String(x.id)===String(id)) : null;
+  document.getElementById('modal-tarea-title').textContent = t?'Editar tarea':'Nueva tarea';
+  document.getElementById('t-titulo').value = t?t.titulo:'';
+  document.getElementById('t-desc').value = t?t.descripcion||'':'';
+  document.getElementById('t-estado').value = t?t.estado:'pendiente';
+  document.getElementById('t-prioridad').value = t?t.prioridad||'media':'media';
+  document.getElementById('t-fecha-inicio').value = t?t.fecha_inicio||'':'';
+  document.getElementById('t-fecha-fin').value = t?t.fecha_fin||'':'';
+
+  // Áreas
+  const isAdmin = currentSession?.rol === 'admin';
+  const areas = await getAreas();
+  const areaSel = document.getElementById('t-area');
+  areaSel.innerHTML = areas.map(a=>`<option value="${a.nombre}">${a.nombre}</option>`).join('');
+  if (!isAdmin) { areaSel.value = currentSession?.area; areaSel.disabled = true; }
+  else { areaSel.disabled = false; if (t?.area) areaSel.value = t.area; }
+
+  // Documentos (filtrados por área seleccionada)
+  populateDocSelectForTarea(t?.doc_id);
+  areaSel.onchange = () => populateDocSelectForTarea();
+
+  // Asignados
+  tareaAsignados = t && Array.isArray(t.asignados) ? [...t.asignados] : [];
+  const users = await getUsers();
+  const addSel = document.getElementById('t-asignado-add');
+  addSel.innerHTML = '<option value="">+ Agregar persona...</option>' +
+    users.filter(u=>isActivo(u)).map(u=>`<option value="${u.nombre}">${u.nombre}</option>`).join('');
+  renderAsignadosList();
+
+  document.getElementById('tarea-modal-error').style.display='none';
+  document.getElementById('modal-tarea').classList.add('open');
+}
+
+function populateDocSelectForTarea(selectedId) {
+  const area = document.getElementById('t-area').value;
+  const sel = document.getElementById('t-docid');
+  const opciones = docs.filter(d => d.area === area && d.estado !== 'obsoleto');
+  sel.innerHTML = '<option value="">— Sin vincular —</option>' +
+    opciones.map(d=>`<option value="${d.id}"${String(d.id)===String(selectedId)?' selected':''}>${d.codigo} — ${d.titulo.substring(0,30)}</option>`).join('');
+}
+
+function renderAsignadosList() {
+  const cont = document.getElementById('t-asignados-list');
+  cont.innerHTML = tareaAsignados.map(n => `<span class="assignee-chip">${n} <span class="x" onclick="removeAsignado('${n.replace(/'/g,"\\'")}')">×</span></span>`).join('');
+}
+
+function addAsignado() {
+  const sel = document.getElementById('t-asignado-add');
+  const nombre = sel.value;
+  if (nombre && !tareaAsignados.includes(nombre)) {
+    tareaAsignados.push(nombre);
+    renderAsignadosList();
+  }
+  sel.value = '';
+}
+
+function removeAsignado(nombre) {
+  tareaAsignados = tareaAsignados.filter(n => n !== nombre);
+  renderAsignadosList();
+}
+
+async function saveTarea() {
+  const titulo = document.getElementById('t-titulo').value.trim();
+  const errEl = document.getElementById('tarea-modal-error');
+  errEl.style.display = 'none';
+  if (!titulo) { errEl.textContent='El título es obligatorio.'; errEl.style.display='block'; return; }
+
+  const data = {
+    id: editingTareaId || undefined,
+    titulo,
+    descripcion: document.getElementById('t-desc').value.trim(),
+    area: document.getElementById('t-area').value,
+    doc_id: document.getElementById('t-docid').value || null,
+    estado: document.getElementById('t-estado').value,
+    prioridad: document.getElementById('t-prioridad').value,
+    asignados: tareaAsignados,
+    fecha_inicio: document.getElementById('t-fecha-inicio').value,
+    fecha_fin: document.getElementById('t-fecha-fin').value,
+    comentarios: editingTareaId ? (tareas.find(x=>String(x.id)===String(editingTareaId))?.comentarios || []) : [],
+    fecha_creacion: editingTareaId ? (tareas.find(x=>String(x.id)===String(editingTareaId))?.fecha_creacion || new Date().toISOString().slice(0,10)) : new Date().toISOString().slice(0,10)
+  };
+
+  const saved = await apiPost('saveTarea', data);
+  if (editingTareaId) {
+    const idx = tareas.findIndex(x=>String(x.id)===String(editingTareaId));
+    if (idx>=0) tareas[idx] = {...data, id: saved?.id||editingTareaId};
+    await addLog(`Editó la tarea: ${titulo}`);
+  } else {
+    tareas.push({...data, id: saved?.id||Date.now()});
+    await addLog(`Creó la tarea: ${titulo}`);
+  }
+  closeModal('modal-tarea');
+  updateBadges();
+  renderKanban();
+}
+
+// ─── Reg. Gestión AV REGISTRO UNIFICADO ──────────────────────────────────────────
+const TIPO_CLS = { NC:'pr', AC:'pa', OM:'pv', OBS:'pb', AP:'po', QRyS:'pr', Otro:'pb' };
+let r002CausasSelected = [], r002AcNcsSelected = [];
+
+function onR002TipoChange() {
+  const tipo = document.getElementById('r002-tipo').value;
+  document.getElementById('r002-nc-fields').style.display = tipo === 'NC' ? '' : 'none';
+  document.getElementById('r002-ac-fields').style.display = tipo === 'AC' ? '' : 'none';
+}
+
+function r002AddCausa() {
+  const sel = document.getElementById('r002-causa-add');
+  const val = sel.value;
+  if (val && !r002CausasSelected.includes(val)) {
+    r002CausasSelected.push(val);
+    r002RenderCausas();
+  }
+  sel.value = '';
+}
+
+function r002RemoveCausa(val) {
+  r002CausasSelected = r002CausasSelected.filter(c => c !== val);
+  r002RenderCausas();
+}
+
+function r002RenderCausas() {
+  const cont = document.getElementById('r002-causas-chips');
+  if (!cont) return;
+  cont.innerHTML = r002CausasSelected.map(c =>
+    `<span class="assignee-chip" style="background:var(--purple-light);color:var(--purple-dark)">${c} <span class="x" onclick="r002RemoveCausa('${c.replace(/'/g,"\\'")}')">×</span></span>`
+  ).join('');
+}
+
+function r002AcAddNc() {
+  const sel = document.getElementById('r002-ac-nc-add');
+  const id = sel.value;
+  if (id && !r002AcNcsSelected.includes(id)) {
+    r002AcNcsSelected.push(id);
+    r002RenderAcNcs();
+  }
+  sel.value = '';
+}
+
+function r002RemoveAcNc(id) {
+  r002AcNcsSelected = r002AcNcsSelected.filter(x => x !== id);
+  r002RenderAcNcs();
+}
+
+function r002RenderAcNcs() {
+  const cont = document.getElementById('r002-ac-ncs-chips');
+  if (!cont) return;
+  cont.innerHTML = r002AcNcsSelected.map(id => {
+    const nc = ncs.find(n => String(n.id)===String(id));
+    return `<span class="assignee-chip">NC#${id}${nc?': '+nc.descripcion.substring(0,25)+'...':''} <span class="x" onclick="r002RemoveAcNc('${id}')">×</span></span>`;
+  }).join('');
+}
+
+function buildR002Rows() {
+  const rows = [];
+  let counter = { NC:0, AC:0, OM:0, OBS:0, AP:0, QRyS:0, Otro:0 };
+  const cleanDate = v => v ? String(v).slice(0,10) : '';
+
+  ncs.forEach(n => {
+    counter.NC++;
+    const eficaz = n.eficaz || (n.estado==='cerrada' ? 'Sí' : '');
+    rows.push({
+      tipo:'NC', num:counter.NC, fuente:'sistema', id:n.id,
+      fecha:cleanDate(n.fecha), descripcion:n.descripcion||'',
+      responsable:n.responsable||'', procedencia:n.area_detecta||'',
+      estado:n.estado==='cerrada'?'Cerrada':n.estado==='en_proceso'?'En proceso':'Abierta',
+      eficaz, implementacion:'', seguimiento:'',
+      accion_inmediata:n.accion||'',
+      accion_lograda_nc:n.accion_lograda||'',
+      causas:(n.causa_raiz||'') + (n.causa_detalle ? '\n→ '+n.causa_detalle : ''),
+      accion_lograda:'',
+      fecha_rev:cleanDate(n.fecha_cierre||n.fecha_revision), fecha_baja:cleanDate(n.fecha_baja),
+      nc:true, ac:false, om:false, obs:false, ap:false, qrys:n.reclamo!=='no', otro:false
+    });
+  });
+
+  accionesCorrectivas.forEach(a => {
+    counter.AC++;
+    const ncRefs = (Array.isArray(a.nc_ids)?a.nc_ids:[]).map(id=>`NC#${id}`).join(', ');
+    const eficaz = a.eficaz || ((a.estado==='cerrada'||a.estado==='completada') ? 'Sí' : '');
+    rows.push({
+      tipo:'AC', num:counter.AC, fuente:'sistema', id:a.id,
+      fecha:cleanDate(a.fecha_creacion), descripcion:a.titulo||'',
+      responsable:a.responsable||'', procedencia:ncRefs,
+      estado:a.estado==='cerrada'||a.estado==='completada'?'Cerrada':a.estado==='en_proceso'?'En proceso':'Abierta',
+      eficaz, implementacion:a.descripcion||'', seguimiento:'',
+      accion_inmediata:'', causas:'',
+      accion_lograda:a.evidencia||'',
+      fecha_rev:cleanDate(a.fecha_compromiso), fecha_baja:cleanDate(a.fecha_cierre),
+      nc:false, ac:true, om:false, obs:false, ap:false, qrys:false, otro:false
+    });
+  });
+
+  r002Entries.forEach(e => {
+    const t = e.tipo||'Otro';
+    counter[t] = (counter[t]||0)+1;
+    rows.push({
+      tipo:t, num:counter[t], fuente:'manual', id:e.id,
+      fecha:cleanDate(e.fecha), descripcion:e.descripcion||'',
+      responsable:e.responsable||'', procedencia:e.procedencia||'',
+      estado:e.estado||'Abierta', eficaz:e.eficaz||'',
+      implementacion:e.implementacion||'', seguimiento:e.seguimiento||'',
+      accion_inmediata:e.accion_inmediata||'',
+      causas:e.detalle_causas||'',
+      accion_lograda:e.accion_lograda||'',
+      fecha_rev:cleanDate(e.fecha_revision), fecha_baja:cleanDate(e.fecha_baja),
+      nc:t==='NC', ac:t==='AC', om:t==='OM', obs:t==='OBS', ap:t==='AP', qrys:t==='QRyS', otro:t==='Otro'
+    });
+  });
+
+  rows.sort((a,b) => (b.fecha||'').localeCompare(a.fecha||''));
+  return rows;
+}
+
+function renderR002() {
+  const filtro = document.getElementById('r002-filter-tipo')?.value || '';
+  let rows = buildR002Rows();
+  if (filtro) rows = rows.filter(r => r.tipo === filtro);
+
+  const stCls = { Abierta:'pb', 'En proceso':'pr', Cerrada:'pv' };
+  const tipoLabel = { NC:'No Conformidad', AC:'Acción Correctiva', OM:'Oportunidad de Mejora', OBS:'Observación', AP:'Acción Preventiva', QRyS:'Queja / Reclamo', Otro:'Otro' };
+
+  document.getElementById('r002-content').innerHTML = rows.length ? `
+    <div style="overflow-x:auto">
+    <table class="tbl" style="min-width:960px">
+      <thead><tr>
+        <th style="width:48px">Tipo</th>
+        <th style="width:60px">Nº</th>
+        <th style="width:82px">Fecha</th>
+        <th>Descripción / Causa raíz</th>
+        <th style="width:95px">Responsable</th>
+        <th style="width:100px">Procedencia</th>
+        <th style="width:60px;text-align:center">Eficaz</th>
+        <th style="width:78px">Estado</th>
+        <th style="width:82px">F. Revisión</th>
+        <th style="width:44px;text-align:right">Acc.</th>
+      </tr></thead>
+      <tbody>${rows.map(r => `
+        <tr>
+          <td>
+            <span class="pill ${TIPO_CLS[r.tipo]||'pb'}" style="font-size:10px">${r.tipo}</span>
+          </td>
+          <td style="font-family:var(--mono);font-size:11px;color:var(--text3)">${r.tipo}-${String(r.num).padStart(3,'0')}</td>
+          <td style="font-size:11px;color:var(--text3)">${r.fecha}</td>
+          <td>
+            <div style="font-size:12px">${r.descripcion}</div>
+            ${r.procedencia?`<div style="font-size:10px;color:var(--text3);margin-top:2px"><i class="ti ti-map-pin" style="font-size:10px"></i> ${r.procedencia}</div>`:''}
+            ${r.causas?`<div style="font-size:10px;color:var(--amber);margin-top:2px">${r.causas.split(' · ').map(c=>`• ${c}`).join(' ')}</div>`:''}
+            ${r.causa_detalle?`<div style="font-size:10px;color:var(--text3);font-style:italic;margin-top:1px">${r.causa_detalle.substring(0,60)}${r.causa_detalle.length>60?'...':''}</div>`:''}
+            ${r.accion_lograda?`<div style="font-size:10px;color:var(--green);margin-top:2px"><i class="ti ti-check" style="font-size:10px"></i> ${r.accion_lograda.substring(0,50)}</div>`:''}
+          </td>
+          <td style="font-size:11px">${r.responsable}</td>
+          <td style="font-size:11px;color:var(--text2)">${r.procedencia||'—'}</td>
+          <td style="font-size:11px;text-align:center">${r.eficaz||'—'}</td>
+          <td><span class="pill ${stCls[r.estado]||'pb'}">${r.estado}</span></td>
+          <td style="font-size:11px;color:var(--text3)">${r.fecha_rev||'—'}</td>
+          <td style="text-align:right">
+            ${r.fuente==='sistema' && r.tipo==='NC' ? `<button class="btn sm" onclick="setView('nc')" title="Ver en No Conformidades"><i class="ti ti-arrow-right"></i></button>` : ''}
+            ${r.fuente==='sistema' && r.tipo==='AC' ? `<button class="btn sm" onclick="setView('ac')" title="Ver en Acciones Correctivas"><i class="ti ti-arrow-right"></i></button>` : ''}
+            ${r.fuente==='manual' ? `<button class="btn sm" onclick="openR002Modal('${r.id}')"><i class="ti ti-edit"></i></button>` : ''}
+          </td>
+        </tr>`).join('')}
+      </tbody>
+    </table>
+    </div>
+    <div style="font-size:11px;color:var(--text3);padding:8px 0">
+      Total: ${rows.length} entradas · ${rows.filter(r=>r.estado==='Abierta').length} abiertas ·
+      <span style="color:var(--amber)">${rows.filter(r=>r.tipo==='NC').length} NC</span> ·
+      <span style="color:var(--purple-dark)">${rows.filter(r=>r.tipo==='AC').length} AC</span> ·
+      NC y AC se sincronizan automáticamente desde sus módulos.
+    </div>
+  ` : '<p style="color:var(--text3);padding:20px;font-size:13px">Sin entradas registradas.</p>';
+}
+
+async function openR002Modal(id) {
+  editingR002Id = id || null;
+  const e = id ? r002Entries.find(x => String(x.id)===String(id)) : null;
+  document.getElementById('modal-r002-title').textContent = e ? 'Editar entrada Reg. Gestión AV' : 'Nueva entrada — Reg. Gestión AV';
+
+  // Poblar áreas para NC
+  const areas = await getAreas();
+  const areaSel = document.getElementById('r002-area-detecta');
+  areaSel.innerHTML = areas.map(a=>`<option value="${a.nombre}">${a.nombre}</option>`).join('');
+
+  // Poblar NCs para AC
+  const ncSel = document.getElementById('r002-ac-nc-add');
+  ncSel.innerHTML = '<option value="">+ Vincular una NC...</option>' +
+    ncs.map(n=>`<option value="${n.id}">NC#${n.id} — ${(n.descripcion||'').substring(0,40)}</option>`).join('');
+
+  // Resetear chips
+  r002CausasSelected = e?.causa_raiz ? e.causa_raiz.split(' · ').filter(Boolean) : [];
+  r002AcNcsSelected = e?.nc_ids ? [...e.nc_ids.map(String)] : [];
+  r002RenderCausas();
+  r002RenderAcNcs();
+
+  // Campos base
+  document.getElementById('r002-tipo').value = e?.tipo || 'NC';
+  document.getElementById('r002-fecha').value = e?.fecha || new Date().toISOString().slice(0,10);
+  document.getElementById('r002-desc').value = e?.descripcion || '';
+  document.getElementById('r002-resp').value = e?.responsable || '';
+  document.getElementById('r002-procedencia').value = e?.procedencia || '';
+  document.getElementById('r002-estado').value = e?.estado || 'Abierta';
+  document.getElementById('r002-eficaz').value = e?.eficaz || '';
+  document.getElementById('r002-ainm').value = e?.accion_inmediata || '';
+  document.getElementById('r002-detalle').value = e?.detalle_causas || '';
+  document.getElementById('r002-logrado').value = e?.accion_lograda || '';
+  document.getElementById('r002-frev').value = e?.fecha_revision || '';
+  document.getElementById('r002-fbaja').value = e?.fecha_baja || '';
+
+  // Campos NC
+  document.getElementById('r002-area-detecta').value = e?.area_detecta || '';
+  document.getElementById('r002-detectada-por').value = e?.detectada_por || CURRENT_USER;
+  document.getElementById('r002-origen-nc').value = e?.origen_nc || 'interno';
+  document.getElementById('r002-reclamo').value = e?.reclamo || 'no';
+  document.getElementById('r002-requisito').value = e?.requisito || '';
+  document.getElementById('r002-causa-detalle').value = e?.causa_detalle || '';
+  document.getElementById('r002-reincidente').value = e?.reincidente || 'no';
+  document.getElementById('r002-reinc-ref').value = e?.reincidente_ref || '';
+  document.getElementById('r002-reinc-ref-wrap').style.display = (e?.reincidente && e.reincidente!=='no') ? '' : 'none';
+
+  // Campos AC
+  document.getElementById('r002-fecha-comp').value = e?.fecha_compromiso || '';
+  document.getElementById('r002-fecha-cierre').value = e?.fecha_cierre || '';
+  document.getElementById('r002-evidencia').value = e?.evidencia || '';
+
+  document.getElementById('r002-error').style.display = 'none';
+  onR002TipoChange();
+  document.getElementById('modal-r002').classList.add('open');
+}
+
+async function saveR002Entry() {
+  const desc = document.getElementById('r002-desc').value.trim();
+  const errEl = document.getElementById('r002-error');
+  errEl.style.display = 'none';
+  if (!desc) { errEl.textContent='La descripción es obligatoria.'; errEl.style.display='block'; return; }
+
+  const tipo = document.getElementById('r002-tipo').value;
+  const fecha = document.getElementById('r002-fecha').value;
+  const resp  = document.getElementById('r002-resp').value.trim()||'—';
+  const estado = document.getElementById('r002-estado').value;
+
+  // Guardar en Reg. Gestión AV
+  const r002Data = {
+    id: editingR002Id || undefined,
+    tipo, fecha, descripcion: desc, responsable: resp,
+    procedencia: document.getElementById('r002-procedencia').value,
+    eficaz: document.getElementById('r002-eficaz').value,
+    estado,
+    accion_inmediata: document.getElementById('r002-ainm').value.trim(),
+    detalle_causas: document.getElementById('r002-detalle').value.trim(),
+    accion_lograda: document.getElementById('r002-logrado').value.trim(),
+    fecha_revision: document.getElementById('r002-frev').value,
+    fecha_baja: document.getElementById('r002-fbaja').value,
+    // NC fields
+    area_detecta: document.getElementById('r002-area-detecta').value,
+    detectada_por: document.getElementById('r002-detectada-por').value.trim(),
+    origen_nc: document.getElementById('r002-origen-nc').value,
+    reclamo: document.getElementById('r002-reclamo').value,
+    requisito: document.getElementById('r002-requisito').value.trim(),
+    causa_raiz: r002CausasSelected.join(' · '),
+    causa_detalle: document.getElementById('r002-causa-detalle').value.trim(),
+    reincidente: document.getElementById('r002-reincidente').value,
+    reincidente_ref: document.getElementById('r002-reinc-ref').value.trim(),
+    // AC fields
+    nc_ids: r002AcNcsSelected,
+    fecha_compromiso: document.getElementById('r002-fecha-comp').value,
+    fecha_cierre: document.getElementById('r002-fecha-cierre').value,
+    evidencia: document.getElementById('r002-evidencia').value.trim(),
+  };
+
+  // Guardar en Reg. Gestión AV solo si es OM, OBS, AP, QRyS u Otro
+  // NC y AC se sincronizan desde sus propios módulos
+  let savedId = editingR002Id;
+  if (!['NC','AC'].includes(tipo)) {
+    const saved = await apiPost('saveR002', r002Data);
+    savedId = saved?.id || editingR002Id || Date.now();
+    if (editingR002Id) {
+      const idx = r002Entries.findIndex(x => String(x.id)===String(editingR002Id));
+      if (idx>=0) r002Entries[idx] = {...r002Data, id: savedId};
+    } else {
+      r002Entries.push({...r002Data, id: savedId});
+    }
+  }
+
+  // ── Sincronizar a NC si tipo es NC ──────────────────────────────────
+  if (tipo === 'NC') {
+    const ncData = {
+      doc_id: null,
+      descripcion: desc,
+      responsable: resp,
+      estado: estado === 'Cerrada' ? 'cerrada' : estado === 'En proceso' ? 'en_proceso' : 'abierta',
+      accion: document.getElementById('r002-ainm').value.trim(),
+      fecha,
+      area_detecta: r002Data.area_detecta,
+      detectada_por: r002Data.detectada_por,
+      origen: r002Data.origen_nc,
+      reclamo: r002Data.reclamo,
+      requisito: r002Data.requisito,
+      causa_raiz: r002Data.causa_raiz,
+      causa_detalle: r002Data.causa_detalle,
+      reincidente: r002Data.reincidente,
+      reincidente_ref: r002Data.reincidente_ref,
+    };
+    const ncSaved = await apiPost('saveNc', ncData);
+    if (ncSaved?.id) ncs.push({...ncData, id: ncSaved.id});
+    await addLog(`Reg. Gestión AV → NC creada: ${desc.substring(0,40)}`);
+  }
+
+  // ── Sincronizar a AC si tipo es AC ──────────────────────────────────
+  else if (tipo === 'AC') {
+    const acData = {
+      titulo: desc,
+      descripcion: document.getElementById('r002-detalle').value.trim(),
+      nc_ids: r002AcNcsSelected,
+      responsable: resp,
+      estado: estado === 'Cerrada' ? 'cerrada' : estado === 'En proceso' ? 'en_proceso' : 'pendiente',
+      fecha_compromiso: r002Data.fecha_compromiso,
+      fecha_cierre: r002Data.fecha_cierre,
+      evidencia: r002Data.evidencia,
+      fecha_creacion: fecha,
+      comentarios: [],
+    };
+    const acSaved = await apiPost('saveAC', acData);
+    if (acSaved?.id) accionesCorrectivas.push({...acData, id: acSaved.id});
+    await addLog(`Reg. Gestión AV → AC creada: ${desc.substring(0,40)}`);
+  } else {
+    await addLog(`Reg. Gestión AV registró (${tipo}): ${desc.substring(0,40)}`);
+  }
+
+  closeModal('modal-r002');
+  updateBadges();
+  renderR002();
+}
+
+function exportR002() {
+  const rows = buildR002Rows();
+  const filtro = document.getElementById('r002-filter-tipo')?.value || '';
+  const data = filtro ? rows.filter(r => r.tipo===filtro) : rows;
+
+  // Limpiar fechas ISO (remover timezone T03:00:00.000Z)
+  const cleanDate = v => {
+    if (!v) return '';
+    return String(v).length > 10 ? String(v).slice(0,10) : String(v);
+  };
+
+  const headers = [
+    'Tipo','Nº','Fecha de alta','Descripción','Responsable',
+    'OM','OBS','NC','AC','AP','QRyS','Otro',
+    'Eficaz','Procedencia','Implementación','Estado',
+    'Fecha de revisión','Fecha de baja',
+    'Acción inmediata','Detalle / Causas','Seguimiento','Acción lograda'
+  ];
+
+  const csvRows = [headers, ...data.map(r => [
+    r.tipo,
+    `${r.tipo}-${String(r.num).padStart(3,'0')}`,
+    cleanDate(r.fecha),
+    r.descripcion,
+    r.responsable,
+    r.om?'X':'', r.obs?'X':'', r.nc?'X':'', r.ac?'X':'', r.ap?'X':'', r.qrys?'X':'', r.otro?'X':'',
+    r.eficaz||'',
+    r.procedencia||'',
+    r.implementacion||r.accion_lograda||'',   // Implementación
+    r.estado,
+    cleanDate(r.fecha_rev),
+    cleanDate(r.fecha_baja),
+    r.accion_inmediata||'',
+    r.causas||'',
+    r.seguimiento||'',
+    r.accion_lograda||''
+  ])];
+
+  const csv = csvRows.map(r => r.map(c => `"${String(c||'').replace(/"/g,'""')}"`).join(',')).join('\n');
+  const blob = new Blob(['\uFEFF'+csv], {type:'text/csv;charset=utf-8;'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `Registro_Gestion_AV_${new Date().toISOString().slice(0,10)}${filtro?'_'+filtro:''}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+  addLog(`Exportó Registro de Gestión AV${filtro?' ('+filtro+')':''}`);
+}
+
+// ─── ACCIONES CORRECTIVAS ─────────────────────────────────────────────
+const AC_ESTADO_CLS = { pendiente:'pb', en_proceso:'pr', completada:'pa', cerrada:'pv' };
+const AC_ESTADO_LBL = { pendiente:'Pendiente', en_proceso:'En proceso', completada:'Completada', cerrada:'Cerrada' };
+let acNcsSelected = [];
+
+function renderAc() {
+  const hoy = new Date().toISOString().slice(0,10);
+  document.getElementById('nb-ac').textContent = accionesCorrectivas.filter(a => a.estado !== 'cerrada').length;
+  document.getElementById('ac-content').innerHTML = accionesCorrectivas.length ? `
+    <table class="tbl">
+      <thead><tr>
+        <th style="width:36px">ID</th>
+        <th>Acción correctiva</th>
+        <th style="width:130px">NCs relacionadas</th>
+        <th style="width:80px">Responsable</th>
+        <th style="width:85px">Compromiso</th>
+        <th style="width:70px">Estado</th>
+        <th style="width:60px;text-align:center">Eficaz</th>
+        <th style="width:82px">F. Cierre</th>
+        <th style="width:56px;text-align:right">Acc.</th>
+      </tr></thead>
+      <tbody>${accionesCorrectivas.map(ac => {
+        const ncIds = Array.isArray(ac.nc_ids) ? ac.nc_ids : [];
+        const ncChips = ncIds.map(id => {
+          const nc = ncs.find(n => String(n.id)===String(id));
+          return nc ? `<span class="nc-badge" style="font-size:10px">NC#${nc.id}</span>` : '';
+        }).join(' ');
+        const overdue = ac.fecha_compromiso && ac.fecha_compromiso < hoy && ac.estado !== 'cerrada' && ac.estado !== 'completada';
+        return `<tr>
+          <td style="color:var(--text3);font-family:var(--mono)">#${ac.id}</td>
+          <td>
+            <div style="font-size:12px;font-weight:500">${ac.titulo||''}</div>
+            ${ac.descripcion?`<div style="font-size:11px;color:var(--text3);margin-top:2px">${ac.descripcion.substring(0,70)}${ac.descripcion.length>70?'...':''}</div>`:''}
+            ${ac.evidencia?`<div style="font-size:10px;color:var(--green);margin-top:2px"><i class="ti ti-check" style="font-size:11px"></i> ${ac.evidencia.substring(0,50)}</div>`:''}
+          </td>
+          <td style="font-size:11px">${ncChips||'—'}</td>
+          <td style="font-size:11px">${ac.responsable||'—'}</td>
+          <td style="font-size:11px;${overdue?'color:var(--red);font-weight:500':'color:var(--text2)'}">${ac.fecha_compromiso||'—'}${overdue?' ⚠':''}</td>
+          <td><span class="pill ${AC_ESTADO_CLS[ac.estado]||'pb'}">${AC_ESTADO_LBL[ac.estado]||ac.estado}</span></td>
+          <td style="font-size:11px;text-align:center">${ac.eficaz ? `<span class="pill ${ac.eficaz==='Sí'?'pv':'po'}">${ac.eficaz}</span>` : '—'}</td>
+          <td style="font-size:11px;color:var(--text3)">${ac.fecha_cierre ? ac.fecha_cierre.slice(0,10) : (ac.fecha_compromiso ? ac.fecha_compromiso.slice(0,10) : '—')}</td>
+          <td style="text-align:right;display:flex;gap:3px;justify-content:flex-end">
+            <button class="btn sm" onclick="openAcModal(${ac.id})"><i class="ti ti-edit"></i></button>
+            <button class="btn sm danger" onclick="deleteAc(${ac.id})"><i class="ti ti-trash"></i></button>
+          </td>
+        </tr>`;
+      }).join('')}</tbody>
+    </table>` : '<p style="color:var(--text3);padding:20px;font-size:13px">Sin acciones correctivas registradas.</p>';
+}
+
+function acAddNc() {
+  const sel = document.getElementById('ac-nc-add');
+  const id = sel.value;
+  if (id && !acNcsSelected.includes(id)) {
+    acNcsSelected.push(id);
+    renderAcNcsList();
+  }
+  sel.value = '';
+}
+
+function acRemoveNc(id) {
+  acNcsSelected = acNcsSelected.filter(x => x !== id);
+  renderAcNcsList();
+}
+
+function renderAcNcsList() {
+  const cont = document.getElementById('ac-ncs-list');
+  cont.innerHTML = acNcsSelected.map(id => {
+    const nc = ncs.find(n => String(n.id)===String(id));
+    return `<span class="assignee-chip">NC#${id}${nc?': '+nc.descripcion.substring(0,25)+'...':''} <span class="x" onclick="acRemoveNc('${id}')">×</span></span>`;
+  }).join('');
+}
+
+function openAcModal(id) {
+  editingAcId = id || null;
+  const ac = id ? accionesCorrectivas.find(x => String(x.id)===String(id)) : null;
+  document.getElementById('modal-ac-title').textContent = ac ? 'Editar acción correctiva' : 'Nueva acción correctiva';
+  document.getElementById('ac-titulo').value = ac ? ac.titulo||'' : '';
+  document.getElementById('ac-desc').value = ac ? ac.descripcion||'' : '';
+  document.getElementById('ac-resp').value = ac ? ac.responsable||'' : '';
+  document.getElementById('ac-estado').value = ac ? ac.estado||'pendiente' : 'pendiente';
+  document.getElementById('ac-fecha-comp').value = ac ? ac.fecha_compromiso||'' : '';
+  document.getElementById('ac-fecha-cierre').value = ac ? ac.fecha_cierre||'' : '';
+  document.getElementById('ac-evidencia').value = ac ? ac.evidencia||'' : '';
+  document.getElementById('ac-eficaz').value = ac ? ac.eficaz||'' : '';
+  document.getElementById('ac-modal-error').style.display = 'none';
+
+  // Poblar NC selector
+  const sel = document.getElementById('ac-nc-add');
+  sel.innerHTML = '<option value="">+ Vincular una NC...</option>' +
+    ncs.map(n => `<option value="${n.id}">NC#${n.id} — ${(n.descripcion||'').substring(0,40)}</option>`).join('');
+
+  // NCs seleccionadas
+  acNcsSelected = ac && Array.isArray(ac.nc_ids) ? [...ac.nc_ids.map(String)] : [];
+  renderAcNcsList();
+
+  document.getElementById('modal-ac').classList.add('open');
+}
+
+let linkAcNcId = null;
+
+function openLinkAcModal(ncId) {
+  linkAcNcId = ncId;
+  const nc = ncs.find(n => String(n.id)===String(ncId));
+  document.getElementById('link-ac-nc-label').textContent = `NC#${ncId}: ${(nc?.descripcion||'').substring(0,60)}`;
+  const sel = document.getElementById('link-ac-select');
+  // Mostrar ACs que NO estén ya vinculadas a esta NC
+  const disponibles = accionesCorrectivas.filter(a => {
+    const ids = (Array.isArray(a.nc_ids)?a.nc_ids:[]).map(String);
+    return !ids.includes(String(ncId));
+  });
+  sel.innerHTML = disponibles.length
+    ? disponibles.map(a => `<option value="${a.id}">#${a.id} — ${a.titulo} [${AC_ESTADO_LBL[a.estado]||a.estado}]</option>`).join('')
+    : '<option value="" disabled>No hay acciones correctivas disponibles</option>';
+  document.getElementById('link-ac-error').style.display = 'none';
+  document.getElementById('modal-link-ac').classList.add('open');
+}
+
+async function confirmLinkAc() {
+  const sel = document.getElementById('link-ac-select');
+  const acId = sel.value;
+  const errEl = document.getElementById('link-ac-error');
+  if (!acId) { errEl.textContent = 'Seleccioná una acción correctiva.'; errEl.style.display='block'; return; }
+
+  const ac = accionesCorrectivas.find(a => String(a.id)===String(acId));
+  if (!ac) return;
+
+  // Agregar la NC a la AC
+  if (!Array.isArray(ac.nc_ids)) ac.nc_ids = [];
+  if (!ac.nc_ids.map(String).includes(String(linkAcNcId))) {
+    ac.nc_ids.push(String(linkAcNcId));
+    await apiPost('saveAC', ac);
+    const idx = accionesCorrectivas.findIndex(a => String(a.id)===String(acId));
+    if (idx>=0) accionesCorrectivas[idx] = ac;
+    await addLog(`Vinculó AC#${acId} "${ac.titulo}" a NC#${linkAcNcId}`);
+  }
+  closeModal('modal-link-ac');
+  // Refrescar la vista actual
+  if (selectedDocId) showDetail(selectedDocId);
+  else renderNc();
+}
+
+function openAcModalFromNc(ncId) {
+  openAcModal();
+  // Pre-seleccionar la NC
+  setTimeout(() => {
+    if (!acNcsSelected.includes(String(ncId))) {
+      acNcsSelected.push(String(ncId));
+      renderAcNcsList();
+    }
+  }, 50);
+}
+
+async function saveAc() {
+  const titulo = document.getElementById('ac-titulo').value.trim();
+  const errEl = document.getElementById('ac-modal-error');
+  errEl.style.display = 'none';
+  if (!titulo) { errEl.textContent='El título es obligatorio.'; errEl.style.display='block'; return; }
+
+  const data = {
+    id: editingAcId || undefined,
+    titulo,
+    descripcion: document.getElementById('ac-desc').value.trim(),
+    nc_ids: acNcsSelected,
+    responsable: document.getElementById('ac-resp').value.trim() || '—',
+    estado: document.getElementById('ac-estado').value,
+    fecha_compromiso: document.getElementById('ac-fecha-comp').value,
+    fecha_cierre: document.getElementById('ac-fecha-cierre').value,
+    evidencia: document.getElementById('ac-evidencia').value.trim(),
+    eficaz: document.getElementById('ac-eficaz').value,
+    fecha_creacion: editingAcId
+      ? (accionesCorrectivas.find(x=>String(x.id)===String(editingAcId))?.fecha_creacion || new Date().toISOString().slice(0,10))
+      : new Date().toISOString().slice(0,10)
+  };
+
+  const saved = await apiPost('saveAC', data);
+  if (editingAcId) {
+    const idx = accionesCorrectivas.findIndex(x => String(x.id)===String(editingAcId));
+    if (idx>=0) accionesCorrectivas[idx] = {...data, id: saved?.id||editingAcId};
+    await addLog(`Editó acción correctiva: ${titulo}`);
+  } else {
+    accionesCorrectivas.push({...data, id: saved?.id||Date.now()});
+    await addLog(`Registró acción correctiva: ${titulo}`);
+  }
+  closeModal('modal-ac');
+  renderAc();
+  updateBadges();
+}
+
+async function deleteAc(id) {
+  const ac = accionesCorrectivas.find(x => String(x.id)===String(id));
+  if (!ac) return;
+  if (!confirm(`¿Eliminar la acción correctiva "${ac.titulo}"?`)) return;
+  await apiPost('deleteAC', { id });
+  accionesCorrectivas = accionesCorrectivas.filter(x => String(x.id)!==String(id));
+  await addLog(`Eliminó acción correctiva: ${ac.titulo}`);
+  renderAc();
+  updateBadges();
+}
+
+// ─── NC ───────────────────────────────────────────────────────────────
+function renderNc() {
+  const isAdmin = currentSession?.rol === 'admin';
+  const scopeIds = (isAdmin ? docs : docs.filter(d => (String(d.publico)==='1'||d.publico===true||d.publico==='true') || String(d.area||'').trim().toLowerCase()===String(currentSession?.area||'').trim().toLowerCase())).map(d => String(d.id));
+  const ncList = isAdmin ? ncs : ncs.filter(n => {
+    if (scopeIds.includes(String(n.doc_id))) return true;
+    if (String(n.area_detecta||'').trim().toLowerCase()===String(currentSession?.area||'').trim().toLowerCase()) return true;
+    return false;
+  });
+  const origenLabel = { interno:'Interna', externo:'Externa', norma:'Norma ISO' };
+  const reclamoLabel = { no:'', si:'⚠ Reclamo cliente', queja:'⚠ Queja interna' };
+
+  document.getElementById('nc-content').innerHTML = ncList.length ? `
+    <table class="tbl">
+      <thead><tr>
+        <th style="width:36px">ID</th>
+        <th>Descripción</th>
+        <th style="width:90px">Área detecta</th>
+        <th style="width:90px">Origen</th>
+        <th style="width:120px">Causa raíz</th>
+        <th style="width:65px">Estado</th>
+        <th style="width:60px;text-align:center">Eficaz</th>
+        <th style="width:80px">Responsable</th>
+        <th style="width:82px">F. Revisión</th>
+        <th style="width:100px;text-align:right">Acc.</th>
+      </tr></thead>
+      <tbody>${ncList.map(n => {
+        const doc = docs.find(d => String(d.id)===String(n.doc_id));
+        const stCls = n.estado==='cerrada'?'pv':n.estado==='en_proceso'?'pr':'pb';
+        const stLbl = n.estado==='cerrada'?'Cerrada':n.estado==='en_proceso'?'En proceso':'Abierta';
+        const reclamo = n.reclamo && n.reclamo !== 'no' ? `<div style="font-size:10px;color:var(--amber);margin-top:2px">${reclamoLabel[n.reclamo]||''}</div>` : '';
+        const reincBadge = n.reincidente === 'si'
+          ? `<span class="pill po" style="font-size:10px;background:var(--red-light);color:var(--red)">🔁 Reincidente${n.reincidente_ref?' (ref: NC#'+n.reincidente_ref+')':''}</span> `
+          : n.reincidente === 'posible'
+          ? `<span class="pill po" style="font-size:10px;background:var(--amber-light);color:var(--amber)">⚠ Posible reincidencia</span> `
+          : '';
+        const reqText = n.requisito ? `<div style="font-size:10px;color:var(--text3);margin-top:2px">Req: ${n.requisito.substring(0,50)}${n.requisito.length>50?'...':''}</div>` : '';
+        const accionText = n.accion ? `<div style="font-size:10px;color:var(--text3);margin-top:2px">Acción: ${n.accion.substring(0,50)}${n.accion.length>50?'...':''}</div>` : '';
+        const acVinculadas = accionesCorrectivas.filter(a => (Array.isArray(a.nc_ids)?a.nc_ids:[]).map(String).includes(String(n.id)));
+        const acCount = acVinculadas.length;
+        return `<tr>
+          <td style="color:var(--text3);font-family:var(--mono)">#${n.id}</td>
+          <td>
+            <div style="font-size:12px">${n.descripcion||''}</div>
+            ${reqText}${reclamo}
+            ${reincBadge ? `<div style="margin-top:3px">${reincBadge}</div>` : ''}
+            ${accionText}
+            ${doc?`<div style="margin-top:3px"><span class="doc-code" style="cursor:pointer;font-size:10px" onclick="showDetail(${doc.id})">${doc.codigo}</span></div>`:''}
+            ${acCount>0?`<div style="margin-top:4px;display:flex;flex-wrap:wrap;gap:3px">${acVinculadas.map(a=>`<span style="font-size:10px;background:var(--purple-light);color:var(--purple-dark);border-radius:4px;padding:2px 6px;cursor:pointer" onclick="openAcModal(${a.id})"><i class="ti ti-tool" style="font-size:10px"></i> ${a.titulo.substring(0,25)}${a.titulo.length>25?'...':''} <span class="pill ${AC_ESTADO_CLS[a.estado]||'pb'}" style="font-size:9px;padding:1px 4px">${AC_ESTADO_LBL[a.estado]||a.estado}</span></span>`).join('')}</div>`:''}
+          </td>
+          <td style="font-size:11px">${n.area_detecta||'—'}${n.detectada_por?`<div style="font-size:10px;color:var(--text3)">${n.detectada_por}</div>`:''}</td>
+          <td><span class="pill pb" style="font-size:10px">${origenLabel[n.origen]||n.origen||'—'}</span></td>
+          <td style="font-size:11px;color:var(--text2)">
+            ${n.causa_raiz
+              ? n.causa_raiz.split(' · ').map(c=>`<div style="margin-bottom:2px">• ${c}</div>`).join('')
+              : '—'}
+            ${n.causa_detalle?`<div style="font-size:10px;color:var(--text3);margin-top:2px;font-style:italic">${n.causa_detalle.substring(0,60)}${n.causa_detalle.length>60?'...':''}</div>`:''}
+          </td>
+          <td><span class="pill ${stCls}">${stLbl}</span></td>
+          <td style="font-size:11px;text-align:center">${n.eficaz ? `<span class="pill ${n.eficaz==='Sí'?'pv':'po'}">${n.eficaz}</span>` : '—'}</td>
+          <td style="font-size:11px">${n.responsable||'—'}</td>
+          <td style="font-size:11px;color:var(--text3)">${n.fecha_cierre ? n.fecha_cierre.slice(0,10) : '—'}</td>
+          <td style="text-align:right;display:flex;gap:3px;justify-content:flex-end">
+            <button class="btn sm" onclick="openNcModalEdit(${n.id})" title="Editar NC"><i class="ti ti-edit"></i></button>
+            <button class="btn sm" onclick="openAcModalFromNc(${n.id})" title="Nueva AC"><i class="ti ti-tool"></i></button>
+            <button class="btn sm" onclick="openLinkAcModal(${n.id})" title="Vincular AC existente"><i class="ti ti-link"></i></button>
+            ${currentSession?.rol==='admin'?`<button class="btn sm danger" onclick="deleteNc(${n.id})" title="Eliminar NC"><i class="ti ti-trash"></i></button>`:''}
+          </td>
+        </tr>`;
+      }).join('')}</tbody>
+    </table>` : '<p style="color:var(--text3);padding:20px;font-size:13px">Sin no conformidades registradas.</p>';
+}
+
+// ─── LOG ──────────────────────────────────────────────────────────────
+function renderLog() {
+  document.getElementById('log-content').innerHTML = actLog.length ? actLog.map(l => {
+    const ts = l.created_at ? l.created_at.slice(0,16).replace('T',' ') : (l.fecha||'');
+    return `<div class="log-item"><span class="log-time">${ts}</span><span style="flex:1">${l.accion}</span><span style="color:var(--text3);font-size:10px">${l.usuario||'Usuario'}</span></div>`;
+  }).join('') : '<p style="color:var(--text3);padding:20px;font-size:13px">Sin actividad registrada.</p>';
+}
+
+// ─── DETALLE ──────────────────────────────────────────────────────────
+function showDetail(id) {
+  selectedDocId = id;
+  const d = docs.find(x => String(x.id)===String(id));
+  if (!d) return;
+  prevView = 'todos';
+  document.getElementById('detail-bc').textContent = d.codigo + ' — ' + d.titulo;
+  // Mostrar botón eliminar solo para admin
+  const btnDel = document.getElementById('btn-delete-doc');
+  if (btnDel) btnDel.style.display = currentSession?.rol==='admin' ? '' : 'none';
+  const hist = (Array.isArray(d.historial) ? d.historial : []).slice().reverse().map(h =>
+    `<div class="hist-item">
+      <span class="hist-ver">v${h.ver}</span>
+      <div style="flex:1">
+        <div>${h.nota||''}</div>
+        ${h.usuario?`<div style="font-size:10px;color:var(--text3)">${h.usuario}</div>`:''}
+      </div>
+      <span style="color:var(--text3);font-size:11px;flex-shrink:0">${h.fecha||''}</span>
+    </div>`
+  ).join('');
+  const docNcs = ncs.filter(n => String(n.doc_id)===String(id));
+  const ncHtml = docNcs.length ? docNcs.map(n => {
+    const stCls = n.estado==='cerrada'?'pv':n.estado==='en_proceso'?'pr':'pb';
+    const stLbl = n.estado==='cerrada'?'Cerrada':n.estado==='en_proceso'?'En proceso':'Abierta';
+    const acVinculadas = accionesCorrectivas.filter(a => (Array.isArray(a.nc_ids)?a.nc_ids:[]).map(String).includes(String(n.id)));
+    const acHtml = acVinculadas.map(a =>
+      `<div style="font-size:10px;color:var(--purple-dark);background:var(--purple-light);border-radius:4px;padding:2px 6px;margin-top:2px;cursor:pointer;display:inline-block" onclick="openAcModal(${a.id})">
+        <i class="ti ti-tool" style="font-size:10px"></i> ${a.titulo.substring(0,35)}${a.titulo.length>35?'...':''}
+        <span class="pill ${AC_ESTADO_CLS[a.estado]||'pb'}" style="font-size:9px;padding:1px 5px;margin-left:3px">${AC_ESTADO_LBL[a.estado]||a.estado}</span>
+      </div>`
+    ).join('');
+    return `<div style="padding:6px 0;border-bottom:0.5px solid var(--border)">
+      <div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap;margin-bottom:3px">
+        <span style="font-size:12px;flex:1">${n.descripcion}</span>
+        <span class="pill ${stCls}">${stLbl}</span>
+        <button class="btn sm" style="height:20px;padding:0 5px;font-size:10px" onclick="openAcModalFromNc(${n.id})" title="Nueva AC para esta NC"><i class="ti ti-tool" style="font-size:11px"></i></button>
+        <button class="btn sm" style="height:20px;padding:0 5px;font-size:10px" onclick="openLinkAcModal(${n.id})" title="Vincular AC existente"><i class="ti ti-link" style="font-size:11px"></i></button>
+      </div>
+      ${acHtml}
+    </div>`;
+  }).join('') : '<p style="font-size:12px;color:var(--text3)">Sin no conformidades.</p>';
+  const FLOW = ['borrador','revision','aprobado','vigente'];
+  const curIdx = FLOW.indexOf(d.estado);
+  const flowHtml = FLOW.map((s,i) => {
+    const icons = ['ti-file','ti-clock','ti-circle-check','ti-rocket'];
+    const labels = ['Borrador','En revisión','Aprobado','Vigente'];
+    const cls = i<curIdx?'done-step':i===curIdx?'active-step':'';
+    return `<div class="flow-step ${cls}">
+      <i class="ti ${icons[i]}" style="font-size:13px"></i>${labels[i]}
+      ${i===curIdx?'<span style="margin-left:auto;font-size:10px">← actual</span>':''}
+      ${i<curIdx?'<i class="ti ti-check" style="margin-left:auto;font-size:12px"></i>':''}
+    </div>`;
+  }).join('');
+  document.getElementById('detail-content').innerHTML = `
+    <h2 style="font-size:15px;font-weight:500;margin-bottom:8px">${d.titulo}</h2>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">
+      <span class="pill ${PILL_CLS[d.estado]||'pb'}">${PILL_LBL[d.estado]||d.estado}</span>
+      <span class="doc-code">${d.codigo}</span>
+      <span class="area-chip"><i class="ti ti-building" style="font-size:11px"></i>${d.area||''}</span>
+      <span class="area-chip"><i class="ti ti-tag" style="font-size:11px"></i>${CLAUSULAS[d.clausula]||d.clausula}</span>
+      <span class="area-chip"><i class="ti ti-file" style="font-size:11px"></i>${d.tipo||''}</span>
+    </div>
+    <p style="font-size:12px;color:var(--text2);margin-bottom:10px">${d.descripcion||'Sin descripción.'}</p>
+    ${d.link?`<div style="margin-bottom:12px"><a href="${d.link}" target="_blank" style="font-size:12px;color:var(--purple);display:inline-flex;align-items:center;gap:5px"><i class="ti ti-external-link" style="font-size:13px"></i>Abrir archivo</a></div>`:''}
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:14px">
+      <div>
+        <div class="section-title">Flujo de aprobación</div>${flowHtml}
+      </div>
+      <div>
+        <div class="section-title">Responsables</div>
+        <div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:0.5px solid var(--border)">
+          <div class="av">${initials(d.responsable)}</div>
+          <div><div style="font-size:12px">${d.responsable||'—'}</div><div style="font-size:10px;color:var(--text3)">Responsable</div></div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;padding:5px 0">
+          <div class="av" style="background:var(--green-light);color:var(--green)">${initials(d.aprobador)}</div>
+          <div><div style="font-size:12px">${d.aprobador||'—'}</div><div style="font-size:10px;color:var(--text3)">Aprobador</div></div>
+        </div>
+      </div>
+      <div>
+        <div class="section-title">No conformidades</div>
+        ${ncHtml}
+        <button class="btn sm" style="margin-top:6px" onclick="openNcModal(${id})"><i class="ti ti-plus"></i>Nueva NC</button>
+      </div>
+    </div>
+    <div class="section-title">Historial de versiones</div>
+    ${hist||'<p style="font-size:12px;color:var(--text3)">Sin historial.</p>'}`;
+  setView('detail');
+}
+
+function backFromDetail() { setView(prevView||'todos'); }
+function initials(n) { if(!n)return'?'; return n.split(' ').map(w=>w[0]).join('').substring(0,2).toUpperCase(); }
+
+// ─── GUARDAR DOC ──────────────────────────────────────────────────────
+function openDocModal(id) {
+  editingDocId = id || null;
+  const d = id ? docs.find(x => String(x.id)===String(id)) : null;
+  document.getElementById('modal-doc-title').textContent = d ? 'Editar documento — SGC' : 'Nuevo documento — SGC';
+  document.getElementById('f-codigo').value = d ? d.codigo : '';
+  document.getElementById('f-version').value = d ? d.version : '1.0';
+  document.getElementById('f-titulo').value = d ? d.titulo : '';
+  document.getElementById('f-area').value = d ? d.area : (currentSession?.rol!=='admin' ? (currentSession?.area||'') : '');
+  const fArea = document.getElementById('f-area');
+  if (currentSession?.rol !== 'admin') { fArea.disabled = true; fArea.style.opacity = '0.7'; }
+  else { fArea.disabled = false; fArea.style.opacity = '1'; }
+  document.getElementById('f-clausula').value = d ? d.clausula : 'c8';
+  document.getElementById('f-tipo').value = d ? d.tipo : 'Procedimiento';
+  document.getElementById('f-estado').value = d ? d.estado : 'borrador';
+  document.getElementById('f-responsable').value = d ? d.responsable||'' : '';
+  document.getElementById('f-aprobador').value = d ? d.aprobador||'' : '';
+  document.getElementById('f-comentario').value = '';
+  document.getElementById('f-link').value = d ? d.link||'' : '';
+  document.getElementById('f-desc').value = d ? d.descripcion||'' : '';
+  document.getElementById('f-publico').checked = d ? (d.publico === true || d.publico === '1' || d.publico === 'true') : false;
+  document.getElementById('modal-doc').classList.add('open');
+}
+
+function openNewVersion() {
+  if (!selectedDocId) return;
+  const d = docs.find(x => String(x.id)===String(selectedDocId));
+  if (!d) return;
+  openDocModal(selectedDocId);
+  const parts = (d.version||'1.0').split('.');
+  document.getElementById('f-version').value = parts[0] + '.' + (parseInt(parts[1]||0)+1);
+  document.getElementById('f-estado').value = 'revision';
+  document.getElementById('modal-doc-title').textContent = 'Nueva versión — SGC';
+}
+
+async function saveDoc() {
+  const codigo = document.getElementById('f-codigo').value.trim();
+  const titulo = document.getElementById('f-titulo').value.trim();
+  if (!codigo || !titulo) { alert('Completá al menos el código y el título.'); return; }
+
+  const btn = document.getElementById('btn-save-doc');
+  btn.disabled = true; btn.innerHTML = '<div class="spinner" style="width:14px;height:14px;border-width:2px"></div>Guardando...';
+
+  const version   = document.getElementById('f-version').value.trim()||'1.0';
+  const estado    = document.getElementById('f-estado').value;
+  const comentario = document.getElementById('f-comentario').value.trim();
+  const aprobador = document.getElementById('f-aprobador').value.trim()||'—';
+  const fecha     = new Date().toISOString().slice(0,10);
+  const fechaHora = new Date().toLocaleString('es-AR');
+
+  let historial = [];
+  let logMsgs = [];
+
+  if (editingDocId) {
+    const old = docs.find(d => String(d.id)===String(editingDocId));
+    historial = Array.isArray(old?.historial) ? [...old.historial] : [];
+
+    // Detectar qué cambió
+    if (version !== old?.version) {
+      const nota = `Nueva versión v${version}${comentario?' — '+comentario:''}`;
+      historial.push({ver:version, fecha, usuario:CURRENT_USER, nota});
+      logMsgs.push(`Nueva versión v${version} en ${codigo}`);
+    }
+    if (estado !== old?.estado) {
+      const nota = `Estado cambiado a ${PILL_LBL[estado]}${comentario?' — '+comentario:''}`;
+      historial.push({ver:version, fecha, usuario:CURRENT_USER, nota});
+      logMsgs.push(`${codigo} pasó a ${PILL_LBL[estado]}`);
+    }
+    if (aprobador !== old?.aprobador && aprobador !== '—') {
+      logMsgs.push(`Aprobador de ${codigo} actualizado a ${aprobador}`);
+    }
+    if (comentario && !logMsgs.length) {
+      historial.push({ver:version, fecha, usuario:CURRENT_USER, nota:`Edición — ${comentario}`});
+      logMsgs.push(`Editó ${codigo} — ${comentario}`);
+    }
+    if (!logMsgs.length) logMsgs.push(`Editó ${codigo} — ${titulo}`);
+  } else {
+    const nota = `Versión inicial${comentario?' — '+comentario:''}`;
+    historial = [{ver:version, fecha, usuario:CURRENT_USER, nota}];
+    logMsgs.push(`Creó ${codigo} — ${titulo}`);
+  }
+
+  const data = {
+    id: editingDocId||undefined,
+    codigo, titulo, version, estado, fecha, historial, aprobador,
+    area:        document.getElementById('f-area').value.trim()||'General',
+    clausula:    document.getElementById('f-clausula').value,
+    tipo:        document.getElementById('f-tipo').value,
+    responsable: document.getElementById('f-responsable').value.trim()||'—',
+    link:        document.getElementById('f-link').value.trim(),
+    descripcion: document.getElementById('f-desc').value.trim(),
+    publico:     document.getElementById('f-publico').checked ? '1' : '0',
+  };
+
+  try {
+    const saved = await persistDoc(data);
+    if (editingDocId) {
+      const idx = docs.findIndex(d => String(d.id)===String(editingDocId));
+      if (idx>=0) docs[idx] = {...docs[idx], ...data, id: saved?.id||editingDocId};
+    } else {
+      docs.push({...data, id: saved?.id||Date.now()});
+    }
+    for (const msg of logMsgs) await addLog(msg);
+  } catch(e) { console.error(e); }
+
+  btn.disabled = false; btn.innerHTML = '<i class="ti ti-device-floppy"></i>Guardar en SGC';
+  closeModal('modal-doc');
+  updateBadges();
+  if (selectedDocId && String(editingDocId)===String(selectedDocId)) showDetail(selectedDocId);
+  else renderDashboard();
+}
+
+async function deleteDoc(id) {
+  if (currentSession?.rol !== 'admin') { alert('Solo el administrador puede eliminar documentos.'); return; }
+  const d = docs.find(x => String(x.id)===String(id));
+  if (!d) return;
+  if (!confirm(`¿Eliminar "${d.titulo}"?\n\nEsta acción no se puede deshacer.`)) return;
+  await gsr('sgcDeleteDoc', String(id));
+  docs = docs.filter(x => String(x.id)!==String(id));
+  await addLog(`Eliminó el documento ${d.codigo} — ${d.titulo}`);
+  updateBadges();
+  if (selectedDocId && String(selectedDocId)===String(id)) backFromDetail();
+  else renderDocs();
+}
+
+// ─── NC CAUSAS MULTI-SELECT ───────────────────────────────────────────
+function ncAddCausa() {
+  const sel = document.getElementById('nc-causa-add');
+  const val = sel.value;
+  if (val && !ncCausasSelected.includes(val)) {
+    ncCausasSelected.push(val);
+    renderNcCausas();
+  }
+  sel.value = '';
+}
+
+function ncRemoveCausa(val) {
+  ncCausasSelected = ncCausasSelected.filter(c => c !== val);
+  renderNcCausas();
+}
+
+function renderNcCausas() {
+  const cont = document.getElementById('nc-causas-chips');
+  if (!cont) return;
+  cont.innerHTML = ncCausasSelected.map(c =>
+    `<span class="assignee-chip" style="background:var(--purple-light);color:var(--purple-dark)">${c}
+      <span class="x" onclick="ncRemoveCausa('${c.replace(/'/g,"\\'")}')">×</span>
+    </span>`
+  ).join('');
+}
+
+// ─── GUARDAR NC ───────────────────────────────────────────────────────
+async function openNcModalEdit(id) {
+  const n = ncs.find(x => String(x.id)===String(id));
+  if (!n) return;
+  editingNcId = id;
+
+  const areas = await getAreas();
+  const areaSel = document.getElementById('nc-area-detecta');
+  areaSel.innerHTML = areas.map(a=>`<option value="${a.nombre}">${a.nombre}</option>`).join('');
+
+  const sel = document.getElementById('nc-docid');
+  sel.innerHTML = '<option value="">— Sin vincular —</option>' + docs.map(d => `<option value="${d.id}"${String(d.id)===String(n.doc_id)?' selected':''}>${d.codigo} — ${d.titulo.substring(0,30)}</option>`).join('');
+
+  document.getElementById('modal-nc-title').textContent = 'Editar no conformidad';
+  document.getElementById('nc-area-detecta').value = n.area_detecta||'';
+  document.getElementById('nc-detectada-por').value = n.detectada_por||'';
+  document.getElementById('nc-origen').value = n.origen||'interno';
+  document.getElementById('nc-reclamo').value = n.reclamo||'no';
+  document.getElementById('nc-reincidente').value = n.reincidente||'no';
+  document.getElementById('nc-reincidente-ref').value = n.reincidente_ref||'';
+  document.getElementById('nc-reincidente-ref-field').style.display = n.reincidente && n.reincidente !== 'no' ? '' : 'none';
+  document.getElementById('nc-requisito').value = n.requisito||'';
+  document.getElementById('nc-desc').value = n.descripcion||'';
+  document.getElementById('nc-causa-detalle').value = n.causa_detalle||'';
+  document.getElementById('nc-resp').value = n.responsable||'';
+  document.getElementById('nc-estado').value = n.estado||'abierta';
+  document.getElementById('nc-eficaz').value = n.eficaz||'';
+  document.getElementById('nc-fecha-cierre').value = n.fecha_cierre||'';
+  document.getElementById('nc-accion').value = n.accion||'';
+  document.getElementById('nc-accion-lograda').value = n.accion_lograda||'';
+
+  // Causas múltiples
+  ncCausasSelected = n.causa_raiz ? n.causa_raiz.split(' · ').filter(Boolean) : [];
+  renderNcCausas();
+
+  document.getElementById('nc-reincidente').onchange = function() {
+    document.getElementById('nc-reincidente-ref-field').style.display = this.value !== 'no' ? '' : 'none';
+  };
+
+  document.getElementById('modal-nc').classList.add('open');
+}
+
+async function deleteNc(id) {
+  if (currentSession?.rol !== 'admin') { alert('Solo el administrador puede eliminar NCs.'); return; }
+  const n = ncs.find(x => String(x.id)===String(id));
+  if (!n) return;
+  if (!confirm(`¿Eliminar la NC "${n.descripcion.substring(0,60)}"?\n\nEsta acción no se puede deshacer.`)) return;
+  await gsr('sgcDeleteNc', String(id));
+  ncs = ncs.filter(x => String(x.id)!==String(id));
+  await addLog(`Eliminó NC #${id}: ${n.descripcion.substring(0,40)}`);
+  updateBadges();
+  renderNc();
+}
+
+async function openNcModal(docId) {
+  editingNcId = null;
+  document.getElementById('modal-nc-title').textContent = 'Registrar no conformidad';
+  // Poblar áreas
+  const areas = await getAreas();
+  const areaSel = document.getElementById('nc-area-detecta');
+  areaSel.innerHTML = areas.map(a=>`<option value="${a.nombre}">${a.nombre}</option>`).join('');
+
+  // Poblar documentos
+  const sel = document.getElementById('nc-docid');
+  sel.innerHTML = '<option value="">— Sin vincular —</option>' + docs.map(d => `<option value="${d.id}"${String(d.id)===String(docId)?' selected':''}>${d.codigo} — ${d.titulo.substring(0,30)}</option>`).join('');
+
+  // Resetear campos
+  document.getElementById('nc-detectada-por').value = CURRENT_USER;
+  document.getElementById('nc-origen').value = 'interno';
+  document.getElementById('nc-reclamo').value = 'no';
+  document.getElementById('nc-reincidente').value = 'no';
+  document.getElementById('nc-reincidente-ref').value = '';
+  document.getElementById('nc-reincidente-ref-field').style.display = 'none';
+  document.getElementById('nc-requisito').value = '';
+  document.getElementById('nc-desc').value = '';
+  document.getElementById('nc-causa-add').value = '';
+  document.getElementById('nc-causa-detalle').value = '';
+  ncCausasSelected = [];
+  renderNcCausas();
+  document.getElementById('nc-resp').value = '';
+  document.getElementById('nc-estado').value = 'abierta';
+  document.getElementById('nc-eficaz').value = '';
+  document.getElementById('nc-fecha-cierre').value = '';
+  document.getElementById('nc-accion').value = '';
+  document.getElementById('nc-accion-lograda').value = '';
+
+  // Toggle reincidente ref
+  document.getElementById('nc-reincidente').onchange = function() {
+    document.getElementById('nc-reincidente-ref-field').style.display = this.value !== 'no' ? '' : 'none';
+  };
+
+  document.getElementById('modal-nc').classList.add('open');
+}
+
+async function saveNc() {
+  const desc = document.getElementById('nc-desc').value.trim();
+  if (!desc) { alert('Describí la no conformidad.'); return; }
+
+  const btn = document.getElementById('btn-save-nc');
+  btn.disabled = true;
+
+  const causaVal = ncCausasSelected.length > 0 ? ncCausasSelected.join(' · ') : '';
+  const docIdVal = document.getElementById('nc-docid').value;
+  const nc = {
+    id: editingNcId || undefined,
+    doc_id: docIdVal || null,
+    area_detecta: document.getElementById('nc-area-detecta').value,
+    detectada_por: document.getElementById('nc-detectada-por').value.trim() || CURRENT_USER,
+    origen: document.getElementById('nc-origen').value,
+    reclamo: document.getElementById('nc-reclamo').value,
+    reincidente: document.getElementById('nc-reincidente').value,
+    reincidente_ref: document.getElementById('nc-reincidente-ref').value.trim(),
+    requisito: document.getElementById('nc-requisito').value.trim(),
+    descripcion: desc,
+    causa_raiz: causaVal,
+    causa_detalle: document.getElementById('nc-causa-detalle').value.trim(),
+    responsable: document.getElementById('nc-resp').value.trim() || '—',
+    estado: document.getElementById('nc-estado').value,
+    eficaz: document.getElementById('nc-eficaz').value,
+    fecha_cierre: document.getElementById('nc-fecha-cierre').value,
+    accion: document.getElementById('nc-accion').value.trim(),
+    accion_lograda: document.getElementById('nc-accion-lograda').value.trim(),
+    fecha: editingNcId ? (ncs.find(x=>String(x.id)===String(editingNcId))?.fecha || new Date().toISOString().slice(0,10)) : new Date().toISOString().slice(0,10),
+  };
+
+  try {
+    if (editingNcId) {
+      await gsr('sgcUpdateNc', JSON.stringify(nc));
+      const idx = ncs.findIndex(x => String(x.id)===String(editingNcId));
+      if (idx>=0) ncs[idx] = {...ncs[idx], ...nc};
+      await addLog(`Editó NC #${editingNcId}: ${desc.substring(0,40)}`);
+    } else {
+      const saved = await persistNc(nc);
+      ncs.push({...nc, id: saved?.id||Date.now()});
+      const origenLabel = {interno:'Interna', externo:'Externa', norma:'Norma ISO'}[nc.origen] || nc.origen;
+      await addLog(`NC registrada (${origenLabel}): ${desc.substring(0,40)}`);
+    }
+  } catch(e) { console.error(e); }
+
+  btn.disabled = false;
+  editingNcId = null;
+  closeModal('modal-nc');
+  updateBadges(); renderNc();
+  if (selectedDocId && String(nc.doc_id)===String(selectedDocId)) showDetail(selectedDocId);
+}
+
+// ─── EXPORTAR ─────────────────────────────────────────────────────────
+function exportExcel() {
+  const isAdmin = currentSession?.rol === 'admin';
+  if (!isAdmin) {
+    // Usuario: exporta solo su área
+    doExport(docs.filter(d => String(d.area||'').trim().toLowerCase()===String(currentSession?.area||'').trim().toLowerCase()), currentSession?.area);
+    return;
+  }
+  // Admin: elegir alcance
+  openExportModal();
+}
+
+function openExportModal() {
+  const areas = [...new Set(docs.map(d=>d.area))].filter(Boolean).sort();
+  const sel = document.getElementById('exp-area');
+  sel.innerHTML = '<option value="__all__">Todas las áreas (listado completo)</option>' +
+    areas.map(a=>`<option value="${a}">Solo: ${a}</option>`).join('');
+  document.getElementById('modal-export').classList.add('open');
+}
+
+function confirmExport() {
+  const val = document.getElementById('exp-area').value;
+  closeModal('modal-export');
+  if (val === '__all__') doExport(docs, null);
+  else doExport(docs.filter(d => d.area === val), val);
+}
+
+function doExport(rows, areaLabel) {
+  const headers = [['Código','Título','Área','Cláusula','Tipo','Versión','Estado','Responsable','Aprobador','Link','Descripción','Fecha']];
+  rows.forEach(d => headers.push([d.codigo,d.titulo,d.area,CLAUSULAS[d.clausula]||d.clausula,d.tipo,d.version,PILL_LBL[d.estado]||d.estado,d.responsable,d.aprobador,d.link||'',d.descripcion||'',d.fecha]));
+  const csv = headers.map(r => r.map(c => `"${String(c||'').replace(/"/g,'""')}"`).join(',')).join('\n');
+  const blob = new Blob(['\uFEFF'+csv], {type:'text/csv;charset=utf-8;'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = areaLabel ? `SGC_${areaLabel.replace(/\s+/g,'_')}.csv` : 'SGC_Listado_Maestro.csv';
+  a.click();
+  URL.revokeObjectURL(url);
+  addLog(`Exportó listado ${areaLabel?'del área '+areaLabel:'completo'} a CSV`);
+}
+
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+
+// ─── LOGIN ────────────────────────────────────────────────────────────
+async function hashPass(pass) {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(pass));
+  return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+}
+
+// Usuarios viven en el Sheet — cache local para la sesión
+// Acepta 'true', '1', true — robusto contra conversiones de Sheets
+function isActivo(u) {
+  const v = String(u.activo).toLowerCase().trim();
+  return v === 'true' || v === '1';
+}
+
+let usersCache = null;
+
+// Hash SHA-256 de 'admin123'
+const ADMIN_HASH = '240be518fabd2724ddb6f04eeb1da5967448d7e831c08c8fa822809f74c720a9';
+const FALLBACK_ADMIN = { id:1, nombre:'Administrador', email:'admin@sgc.com', passHash: ADMIN_HASH, rol:'admin', area:'Calidad', activo:'1' };
+
+async function getUsers() {
+  if (usersCache && usersCache.length) return usersCache;
+  try {
+    const result = await apiGet('getUsuarios');
+    usersCache = (result && result.length) ? result : [FALLBACK_ADMIN];
+    return usersCache;
+  } catch(e) {
+    console.error('Error obteniendo usuarios:', e);
+    return [FALLBACK_ADMIN];
+  }
+}
+
+async function saveUserToSheet(u) {
+  const saved = await apiPost('saveUsuario', u);
+  usersCache = null; // invalidar cache
+  return saved;
+}
+
+async function initDefaultAdmin() {
+  const users = await getUsers();
+  if (!users.length) {
+    const hash = await hashPass('admin123');
+    await saveUserToSheet({ nombre:'Administrador', email:'admin@sgc.com', passHash:hash, rol:'admin', area:'Calidad', activo:'1' });
+    usersCache = null;
+  }
+}
+
+async function doLogin() {
+  const email = document.getElementById('login-email').value.trim().toLowerCase();
+  const pass = document.getElementById('login-pass').value;
+  const errEl = document.getElementById('login-error');
+  const btn = document.getElementById('btn-login');
+  errEl.style.display = 'none';
+  if (!email || !pass) { errEl.textContent='Completá mail y contraseña.'; errEl.style.display='block'; return; }
+  btn.disabled=true; btn.textContent='Verificando...';
+  const hash = await hashPass(pass);
+  console.log('Email ingresado:', email);
+  console.log('Hash generado:', hash);
+  const users = await getUsers();
+  console.log('Usuarios encontrados:', users.length, users.map(u=>u.email));
+  const user = users.find(u => String(u.email).toLowerCase()===email && u.passHash===hash && isActivo(u));
+  console.log('Usuario encontrado:', user ? user.nombre : 'ninguno');
+  btn.disabled=false; btn.textContent='Ingresar al SGC →';
+  if (!user) { errEl.textContent='Mail o contraseña incorrectos, o usuario deshabilitado.'; errEl.style.display='block'; return; }
+  startSession(user);
+}
+
+function startSession(user) {
+  CURRENT_USER = user.nombre;
+  // Asignar currentSession ANTES de loadData/renderDashboard
+  currentSession = {id: user.id, nombre: user.nombre, email: user.email, rol: user.rol||'usuario', area: user.area||''};
+  localStorage.setItem('sgc_session', JSON.stringify(currentSession));
+  const chip = document.getElementById('user-chip-name');
+  const av = document.getElementById('user-avatar-initials');
+  const rb = document.getElementById('user-chip-role');
+  if (chip) chip.textContent = user.nombre.split(' ')[0];
+  if (av) av.textContent = initials(user.nombre);
+  if (rb) { rb.textContent = user.rol==='admin'?'Admin':'Usuario'; rb.className='role-badge'+(user.rol==='admin'?' admin':''); }
+  const navU = document.getElementById('nav-usuarios');
+  const navGA = document.getElementById('nav-gestion-areas');
+  if (navU) navU.style.display = user.rol==='admin'?'flex':'none';
+  if (navGA) navGA.style.display = user.rol==='admin'?'flex':'none';
+  document.getElementById('login-screen').style.display='none';
+  document.getElementById('main-app').style.display='flex';
+  // Pequeño delay para asegurar que google.script.run esté completamente listo
+  setTimeout(() => loadData(), 100);
+}
+
+function logout() {
+  if (!confirm('¿Cerrar sesión?')) return;
+  localStorage.removeItem('sgc_session');
+  document.getElementById('main-app').style.display='none';
+  document.getElementById('login-screen').style.display='flex';
+  document.getElementById('login-email').value='';
+  document.getElementById('login-pass').value='';
+  docs=[]; ncs=[]; actLog=[];
+}
+
+function checkSession() {
+  // En Apps Script el localStorage no persiste bien entre recargas del iframe
+  // Siempre pedimos login para evitar sesiones corruptas
+  localStorage.removeItem('sgc_session');
+}
+
+// ─── PANEL DE USUARIOS (admin) ────────────────────────────────────────
+let editingUserId = null;
+
+async function renderUsuarios() {
+  const users = await getUsers();
+  document.getElementById('nb-usuarios').textContent = users.filter(u=>isActivo(u)).length;
+  document.getElementById('usuarios-content').innerHTML = `
+    <div style="background:var(--blue-light);border-radius:var(--radius);padding:9px 12px;margin-bottom:12px;font-size:12px;color:var(--blue);display:flex;gap:8px">
+      <i class="ti ti-shield-check" style="font-size:14px;flex-shrink:0;margin-top:1px"></i>
+      <span>Los usuarios y contraseñas se guardan en la pestaña <strong>usuarios</strong> de tu Google Sheet.</span>
+    </div>
+    ${users.map(u=>`
+    <div class="user-row">
+      <div class="user-row-av">${initials(u.nombre)}</div>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:13px;font-weight:500">${u.nombre} <span class="role-badge${u.rol==='admin'?' admin':''}">${u.rol==='admin'?'Admin':'Usuario'}</span> ${!isActivo(u)?'<span class="pill po">Deshabilitado</span>':''}</div>
+        <div style="font-size:11px;color:var(--text3)">${u.email} · ${u.rol==='admin'?'Todas las áreas':(u.area||'Sin área asignada')}</div>
+      </div>
+      <label class="switch" title="${isActivo(u)?'Deshabilitar':'Habilitar'}">
+        <input type="checkbox" ${isActivo(u)?'checked':''} onchange="toggleUser(${u.id},this.checked)">
+        <span class="switch-slider"></span>
+      </label>
+      <button class="btn sm" onclick="openUserModal(${u.id})" style="margin-left:6px"><i class="ti ti-edit"></i></button>
+      <button class="btn sm danger" onclick="deleteUser(${u.id})" style="margin-left:3px"><i class="ti ti-trash"></i></button>
+    </div>`).join('')}`;
+}
+
+async function saveUser() {
+  const nombre = document.getElementById('u-nombre').value.trim();
+  const email  = document.getElementById('u-email').value.trim().toLowerCase();
+  const pass   = document.getElementById('u-pass').value;
+  const rol    = document.getElementById('u-rol').value;
+  const area   = rol === 'admin' ? '' : document.getElementById('u-area').value.trim();
+  const errEl  = document.getElementById('user-modal-error');
+  errEl.style.display = 'none';
+  if (!nombre||!email) { errEl.textContent='Completá nombre y email.'; errEl.style.display='block'; return; }
+  if (!editingUserId && pass.length < 6) { errEl.textContent='La contraseña debe tener al menos 6 caracteres.'; errEl.style.display='block'; return; }
+  const users = await getUsers();
+  if (users.find(u=>String(u.email).toLowerCase()===email && String(u.id)!==String(editingUserId))) {
+    errEl.textContent='Ese email ya está registrado.'; errEl.style.display='block'; return;
+  }
+  const userData = { nombre, email, rol, area, activo: '1' };
+  if (editingUserId) {
+    const old = users.find(u=>String(u.id)===String(editingUserId));
+    userData.id = editingUserId;
+    userData.passHash = pass.length>=6 ? await hashPass(pass) : old?.passHash||'';
+    userData.activo = old?.activo||'1';
+  } else {
+    userData.passHash = await hashPass(pass);
+  }
+  await saveUserToSheet(userData);
+  closeModal('modal-user');
+  renderUsuarios();
+}
+
+async function toggleUser(id, activo) {
+  await apiPost('toggleUsuario', { id, activo: activo ? '1' : '0' });
+  usersCache = null;
+  renderUsuarios();
+}
+
+async function deleteUser(id) {
+  const users = await getUsers();
+  const u = users.find(x=>String(x.id)===String(id));
+  if (!u) return;
+  if (!confirm(`¿Eliminar a ${u.nombre}?`)) return;
+  await apiPost('deleteUsuario', { id });
+  usersCache = null;
+  renderUsuarios();
+}
+
+async function onRolChange() {
+  const rol = document.getElementById('u-rol').value;
+  const field = document.getElementById('u-area-field');
+  field.style.display = rol === 'admin' ? 'none' : '';
+}
+
+async function openUserModal(id) {
+  editingUserId = id||null;
+  const users = id ? await getUsers() : [];
+  const u = id ? users.find(x=>String(x.id)===String(id)) : null;
+
+  // Poblar el desplegable de áreas con las registradas en Gestión de áreas
+  const areas = await getAreas();
+  const areaSel = document.getElementById('u-area');
+  areaSel.innerHTML = areas.length
+    ? areas.map(a => `<option value="${a.nombre}">${a.nombre}</option>`).join('')
+    : '<option value="">— No hay áreas creadas —</option>';
+
+  document.getElementById('modal-user-title').textContent = u?'Editar usuario':'Agregar usuario';
+  document.getElementById('u-nombre').value = u?u.nombre:'';
+  document.getElementById('u-email').value = u?u.email:'';
+  document.getElementById('u-pass').value = '';
+  document.getElementById('u-pass').placeholder = u?'Dejá vacío para no cambiar':'Mínimo 6 caracteres';
+  document.getElementById('u-rol').value = u?u.rol:'usuario';
+  if (u?.area && areas.find(a=>a.nombre===u.area)) areaSel.value = u.area;
+  document.getElementById('user-modal-error').style.display='none';
+  onRolChange();
+  document.getElementById('modal-user').classList.add('open');
+}
+
+// ─── ÁREAS ────────────────────────────────────────────────────────────
+let areasCache = null;
+let editingAreaId = null;
+
+async function getAreas() {
+  if (areasCache) return areasCache;
+  try { areasCache = await apiGet('getAreas'); return areasCache || []; } catch(e) { return []; }
+}
+
+async function renderGestionAreas() {
+  const areas = await getAreas();
+  document.getElementById('nb-gareas').textContent = areas.length;
+  document.getElementById('gestion-areas-content').innerHTML = areas.length ? `
+    <table class="tbl">
+      <thead><tr>
+        <th>Nombre</th><th>Responsable</th><th>Descripción</th>
+        <th style="width:80px;text-align:right">Acciones</th>
+      </tr></thead>
+      <tbody>${areas.map(a=>`
+        <tr>
+          <td style="font-weight:500">${a.nombre}</td>
+          <td style="font-size:12px;color:var(--text2)">${a.responsable||'—'}</td>
+          <td style="font-size:12px;color:var(--text2)">${a.descripcion||'—'}</td>
+          <td style="text-align:right;display:flex;gap:3px;justify-content:flex-end">
+            <button class="btn sm" onclick="openAreaModal(${a.id})"><i class="ti ti-edit"></i></button>
+            <button class="btn sm danger" onclick="deleteArea(${a.id})"><i class="ti ti-trash"></i></button>
+          </td>
+        </tr>`).join('')}
+      </tbody>
+    </table>` :
+    '<p style="color:var(--text3);padding:20px;font-size:13px">No hay áreas registradas. Agregá la primera.</p>';
+}
+
+async function openAreaModal(id) {
+  editingAreaId = id || null;
+  const areas = id ? await getAreas() : [];
+  const a = id ? areas.find(x => String(x.id)===String(id)) : null;
+  document.getElementById('modal-area-title').textContent = a ? 'Editar área' : 'Agregar área / sede';
+  document.getElementById('a-nombre').value = a ? a.nombre : '';
+  document.getElementById('a-responsable').value = a ? a.responsable||'' : '';
+  document.getElementById('a-desc').value = a ? a.descripcion||'' : '';
+  document.getElementById('area-modal-error').style.display = 'none';
+  document.getElementById('modal-area').classList.add('open');
+}
+
+async function saveArea() {
+  const nombre = document.getElementById('a-nombre').value.trim();
+  const errEl = document.getElementById('area-modal-error');
+  errEl.style.display = 'none';
+  if (!nombre) { errEl.textContent='El nombre del área es obligatorio.'; errEl.style.display='block'; return; }
+  const areas = await getAreas();
+  if (areas.find(a => a.nombre.toLowerCase()===nombre.toLowerCase() && String(a.id)!==String(editingAreaId))) {
+    errEl.textContent='Ya existe un área con ese nombre.'; errEl.style.display='block'; return;
+  }
+  await apiPost('saveArea', {
+    id: editingAreaId||undefined,
+    nombre,
+    responsable: document.getElementById('a-responsable').value.trim(),
+    descripcion: document.getElementById('a-desc').value.trim(),
+  });
+  areasCache = null;
+  await addLog(`${editingAreaId?'Editó':'Creó'} el área: ${nombre}`);
+  closeModal('modal-area');
+  renderGestionAreas();
+  // Actualizar datalist del formulario de documentos
+  updateAreaDatalist();
+}
+
+async function deleteArea(id) {
+  const areas = await getAreas();
+  const a = areas.find(x => String(x.id)===String(id));
+  if (!a) return;
+  // Verificar si hay docs usando esta área
+  const docsEnArea = docs.filter(d => d.area === a.nombre);
+  if (docsEnArea.length) {
+    if (!confirm(`El área "${a.nombre}" tiene ${docsEnArea.length} documento(s) asignado(s). ¿Eliminarla igual?`)) return;
+  } else {
+    if (!confirm(`¿Eliminar el área "${a.nombre}"?`)) return;
+  }
+  await apiPost('deleteArea', { id });
+  areasCache = null;
+  await addLog(`Eliminó el área: ${a.nombre}`);
+  renderGestionAreas();
+  updateAreaDatalist();
+}
+
+async function updateAreaDatalist() {
+  const areas = await getAreas();
+  const dl = document.getElementById('areas-dl');
+  if (dl) dl.innerHTML = areas.map(a => `<option value="${a.nombre}">`).join('');
+  // También actualizar el filtro de área
+  const sel = document.getElementById('filter-area');
+  if (sel) {
+    const cur = sel.value;
+    sel.innerHTML = '<option value="">Todas las áreas</option>' +
+      [...new Set([...areas.map(a=>a.nombre), ...docs.map(d=>d.area)])].sort()
+        .map(a=>`<option${cur===a?' selected':''}>${a}</option>`).join('');
+  }
+}
+let currentSession = null;
+
+function openPerfil() {
+  try { currentSession = JSON.parse(localStorage.getItem('sgc_session')); } catch(e) {}
+  if (!currentSession) return;
+  document.getElementById('p-pass-actual').value = '';
+  document.getElementById('p-pass-nueva').value = '';
+  document.getElementById('p-pass-rep').value = '';
+  document.getElementById('perfil-error').style.display = 'none';
+  document.getElementById('perfil-ok').style.display = 'none';
+  document.getElementById('modal-perfil').classList.add('open');
+}
+
+async function guardarPerfil() {
+  const passActual = document.getElementById('p-pass-actual').value;
+  const passNueva  = document.getElementById('p-pass-nueva').value;
+  const passRep    = document.getElementById('p-pass-rep').value;
+  const errEl = document.getElementById('perfil-error');
+  const okEl  = document.getElementById('perfil-ok');
+  errEl.style.display = 'none'; okEl.style.display = 'none';
+
+  if (!passActual) { errEl.textContent='Ingresá tu contraseña actual.'; errEl.style.display='block'; return; }
+  if (passNueva.length < 6) { errEl.textContent='La nueva contraseña debe tener al menos 6 caracteres.'; errEl.style.display='block'; return; }
+  if (passNueva !== passRep) { errEl.textContent='Las contraseñas nuevas no coinciden.'; errEl.style.display='block'; return; }
+
+  const users = await getUsers();
+  const user = users.find(u => String(u.email).toLowerCase() === currentSession.email.toLowerCase());
+  if (!user) { errEl.textContent='No se encontró tu usuario.'; errEl.style.display='block'; return; }
+
+  const hashActual = await hashPass(passActual);
+  if (hashActual !== user.passHash) { errEl.textContent='La contraseña actual es incorrecta.'; errEl.style.display='block'; return; }
+
+  await saveUserToSheet({ ...user, passHash: await hashPass(passNueva) });
+
+  document.getElementById('p-pass-actual').value = '';
+  document.getElementById('p-pass-nueva').value = '';
+  document.getElementById('p-pass-rep').value = '';
+  okEl.style.display = 'block';
+}
+
+// ─── RECUPERACIÓN DE CONTRASEÑA ───────────────────────────────────────
+let recoveryEmail = '';
+
+function showRecovery() {
+  document.getElementById('login-card-main').style.display = 'none';
+  document.getElementById('recovery-step1').style.display = '';
+  document.getElementById('recovery-step2').style.display = 'none';
+  document.getElementById('rec-email').value = '';
+  document.getElementById('rec-error1').style.display = 'none';
+}
+
+function showLogin() {
+  document.getElementById('login-card-main').style.display = '';
+  document.getElementById('recovery-step1').style.display = 'none';
+  document.getElementById('recovery-step2').style.display = 'none';
+}
+
+async function requestRecoveryCode() {
+  const email = document.getElementById('rec-email').value.trim().toLowerCase();
+  const errEl = document.getElementById('rec-error1');
+  const btn = document.getElementById('btn-rec-request');
+  errEl.style.display = 'none';
+  if (!email) { errEl.textContent='Ingresá tu correo.'; errEl.style.display='block'; return; }
+  btn.disabled = true; btn.textContent = 'Enviando...';
+  const result = await apiPost('requestRecovery', { email });
+  btn.disabled = false; btn.textContent = 'Enviar código →';
+  if (result?.error) { errEl.textContent = result.error; errEl.style.display='block'; return; }
+  recoveryEmail = email;
+  document.getElementById('rec-sub2').textContent = `Te enviamos un código a ${email}. Revisá tu correo (también spam) y escribilo abajo.`;
+  document.getElementById('recovery-step1').style.display = 'none';
+  document.getElementById('recovery-step2').style.display = '';
+  document.getElementById('rec-codigo').value = '';
+  document.getElementById('rec-pass-nueva').value = '';
+  document.getElementById('rec-pass-rep').value = '';
+  document.getElementById('rec-error2').style.display = 'none';
+  document.getElementById('rec-ok').style.display = 'none';
+}
+
+async function confirmRecovery() {
+  const codigo = document.getElementById('rec-codigo').value.trim();
+  const passNueva = document.getElementById('rec-pass-nueva').value;
+  const passRep = document.getElementById('rec-pass-rep').value;
+  const errEl = document.getElementById('rec-error2');
+  const btn = document.getElementById('btn-rec-confirm');
+  errEl.style.display = 'none';
+  if (!codigo || codigo.length !== 6) { errEl.textContent='Ingresá el código de 6 dígitos.'; errEl.style.display='block'; return; }
+  if (passNueva.length < 6) { errEl.textContent='La contraseña debe tener al menos 6 caracteres.'; errEl.style.display='block'; return; }
+  if (passNueva !== passRep) { errEl.textContent='Las contraseñas no coinciden.'; errEl.style.display='block'; return; }
+  btn.disabled = true; btn.textContent='Verificando...';
+  const newPassHash = await hashPass(passNueva);
+  const result = await apiPost('verifyRecoveryAndReset', { email: recoveryEmail, codigo, newPassHash });
+  btn.disabled = false; btn.textContent='Cambiar contraseña →';
+  if (result?.error) { errEl.textContent = result.error; errEl.style.display='block'; return; }
+  usersCache = null;
+  document.getElementById('rec-ok').style.display = 'block';
+  document.getElementById('login-email').value = recoveryEmail;
+  document.getElementById('login-pass').value = '';
+  setTimeout(showLogin, 2000);
+}
+
+// ─── TEMA ─────────────────────────────────────────────────────────────
+function applyTheme(theme) {
+  document.documentElement.setAttribute('data-theme', theme);
+  const icon = document.getElementById('theme-toggle-icon');
+  if (icon) icon.className = 'ti ' + (theme === 'dark' ? 'ti-sun' : 'ti-moon');
+  localStorage.setItem('sgc_theme', theme);
+}
+function toggleTheme() {
+  const current = document.documentElement.getAttribute('data-theme') ||
+    (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+  applyTheme(current === 'dark' ? 'light' : 'dark');
+}
+function initTheme() {
+  const saved = localStorage.getItem('sgc_theme');
+  if (saved) applyTheme(saved);
+  else {
+    const sysDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    const icon = document.getElementById('theme-toggle-icon');
+    if (icon) icon.className = 'ti ' + (sysDark ? 'ti-sun' : 'ti-moon');
+  }
+}
+
+// ─── INVITACIONES ─────────────────────────────────────────────────────
+let inviteTokenData = null;
+
+async function checkInviteToken() {
+  // El token viene inyectado desde el servidor via template
+  const token = '<?= inviteToken ?>';
+  if (!token) return false;
+
+  // Mostrar pantalla de registro
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('register-screen').style.display = 'flex';
+
+  const result = await gsr('sgcVerifyInvitation', token);
+  if (result?.error) {
+    document.getElementById('reg-title').textContent = 'Invitación inválida';
+    document.getElementById('reg-sub').textContent = result.error;
+    document.getElementById('reg-form').style.display = 'none';
+    return true;
+  }
+
+  inviteTokenData = { token, ...result };
+  document.getElementById('reg-email').value = result.email || '';
+  document.getElementById('reg-area').value  = result.area  || '';
+  document.getElementById('reg-sub').textContent =
+    `Fuiste invitado/a como ${result.rol}${result.area ? ' · ' + result.area : ''}. Completá tus datos para activar tu acceso.`;
+  return true;
+}
+
+async function completeRegistration() {
+  const nombre = document.getElementById('reg-nombre').value.trim();
+  const pass   = document.getElementById('reg-pass').value;
+  const pass2  = document.getElementById('reg-pass2').value;
+  const errEl  = document.getElementById('reg-error');
+  errEl.style.display = 'none';
+
+  if (!nombre) { errEl.textContent = 'Ingresá tu nombre completo.'; errEl.style.display = 'block'; return; }
+  if (pass.length < 6) { errEl.textContent = 'La contraseña debe tener al menos 6 caracteres.'; errEl.style.display = 'block'; return; }
+  if (pass !== pass2)  { errEl.textContent = 'Las contraseñas no coinciden.'; errEl.style.display = 'block'; return; }
+
+  const btn = document.getElementById('btn-register');
+  btn.disabled = true; btn.textContent = 'Registrando...';
+
+  const passHash = await hashPass(pass);
+  const result = await gsr('sgcCompleteRegistration', JSON.stringify({
+    token:    inviteTokenData.token,
+    nombre,
+    email:    inviteTokenData.email,
+    passHash,
+    rol:      inviteTokenData.rol,
+    area:     inviteTokenData.area,
+  }));
+
+  btn.disabled = false; btn.textContent = 'Activar mi acceso →';
+
+  if (result?.error) { errEl.textContent = result.error; errEl.style.display = 'block'; return; }
+
+  document.getElementById('reg-ok').style.display = 'block';
+  document.getElementById('reg-form').querySelectorAll('input,button').forEach(el => el.disabled = true);
+  document.getElementById('login-email').value = inviteTokenData.email;
+  setTimeout(() => {
+    document.getElementById('register-screen').style.display = 'none';
+    document.getElementById('login-screen').style.display = 'flex';
+  }, 2500);
+}
+
+async function openInviteModal() {
+  const areas = await getAreas();
+  const sel = document.getElementById('inv-area');
+  sel.innerHTML = areas.map(a => `<option value="${a.nombre}">${a.nombre}</option>`).join('');
+  document.getElementById('inv-email').value = '';
+  document.getElementById('inv-rol').value = 'usuario';
+  document.getElementById('inv-error').style.display = 'none';
+  document.getElementById('inv-ok').style.display = 'none';
+  document.getElementById('btn-send-invite').disabled = false;
+  document.getElementById('btn-send-invite').innerHTML = '<i class="ti ti-send"></i>Enviar invitación';
+  document.getElementById('modal-invite').classList.add('open');
+}
+
+async function sendInvitation() {
+  const email = document.getElementById('inv-email').value.trim().toLowerCase();
+  const rol   = document.getElementById('inv-rol').value;
+  const area  = document.getElementById('inv-area').value;
+  const errEl = document.getElementById('inv-error');
+  const btn   = document.getElementById('btn-send-invite');
+  errEl.style.display = 'none';
+
+  if (!email) { errEl.textContent = 'Ingresá el email del usuario.'; errEl.style.display = 'block'; return; }
+
+  btn.disabled = true; btn.innerHTML = '<div class="spinner" style="width:14px;height:14px;border-width:2px;display:inline-block"></div> Enviando...';
+
+  const result = await gsr('sgcSendInvitation', JSON.stringify({ email, rol, area }));
+
+  btn.disabled = false; btn.innerHTML = '<i class="ti ti-send"></i>Enviar invitación';
+
+  if (result?.error) { errEl.textContent = result.error; errEl.style.display = 'block'; return; }
+
+  document.getElementById('inv-ok').style.display = 'block';
+  await addLog(`Invitación enviada a ${email} (${rol}${area ? ' · ' + area : ''})`);
+  setTimeout(() => closeModal('modal-invite'), 2000);
+}
+
+// ─── INIT ─────────────────────────────────────────────────────────────
+document.querySelectorAll('.modal-bg').forEach(m => m.addEventListener('click', function(e) { if(e.target===this) closeModal(this.id); }));
+initTheme();
+checkInviteToken().then(hasInvite => {
+  if (!hasInvite) initDefaultAdmin().then(checkSession);
+});</script>
+</body>
+</html>

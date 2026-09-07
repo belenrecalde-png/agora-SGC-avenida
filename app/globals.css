@@ -1,0 +1,77 @@
+@import "tailwindcss";
+
+:root {
+  --background: #f7f7fb;
+  --surface: #ffffff;
+  --foreground: #0a0a0a;
+  --muted: #6b6b76;
+  --border: #e7e5f2;
+
+  /* Paleta de marca Avenida+ */
+  --color-avenida-black: #0a0a0a;
+  --color-avenida-violet: #663edd;
+  --color-avenida-violet-light: #f2effc;
+  --color-avenida-white: #ffffff;
+  --color-avenida-gray: #dad6f2;
+  --color-avenida-blue: #3e63dd;
+  --color-avenida-blue-light: #eaefff;
+
+  /* Sidebar / superficies claras (identidad Ágora) */
+  --sidebar-bg: #fbfaff;
+  --sidebar-border: #ece9f7;
+  --sidebar-hover: #f2effc;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-border: var(--border);
+
+  --color-avenida-black: var(--color-avenida-black);
+  --color-avenida-violet: var(--color-avenida-violet);
+  --color-avenida-violet-light: var(--color-avenida-violet-light);
+  --color-avenida-white: var(--color-avenida-white);
+  --color-avenida-gray: var(--color-avenida-gray);
+  --color-avenida-blue: var(--color-avenida-blue);
+  --color-avenida-blue-light: var(--color-avenida-blue-light);
+
+  --color-sidebar-bg: var(--sidebar-bg);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-hover: var(--sidebar-hover);
+
+  --font-sans: "Inter Variable", ui-sans-serif, system-ui, sans-serif;
+}
+
+html {
+  height: 100%;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+}
+
+/* Scrollbar sutil, coherente con estética SaaS */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-avenida-gray) transparent;
+}
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+*::-webkit-scrollbar-thumb {
+  background-color: var(--color-avenida-gray);
+  border-radius: 999px;
+}
+
+.hero-gradient {
+  background: linear-gradient(120deg, var(--color-avenida-blue-light) 0%, var(--color-avenida-violet-light) 55%, #ffffff 100%);
+}
+
+.avatar-gradient {
+  background: linear-gradient(135deg, var(--color-avenida-blue) 0%, var(--color-avenida-violet) 100%);
+}

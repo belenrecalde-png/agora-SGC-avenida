@@ -1,0 +1,268 @@
+/**
+ * Conexión a la base de datos del portal (Fase 3).
+ *
+ * Decisión de esta fase: usar `node:sqlite` (el driver de SQLite incluido en Node
+ * 22.5+, sin dependencias externas) en vez de un ORM como Prisma. Se probó Prisma
+ * primero, pero requiere descargar binarios de motor desde `binaries.prisma.sh` en
+ * el momento de instalar/generar el cliente, y esa red no está disponible en este
+ * entorno de build. `node:sqlite` viene incluido en Node y no necesita descargar
+ * nada, así que es la opción más robusta para no depender de qué red tenga
+ * disponible el entorno donde se despliegue esto.
+ *
+ * Es una base real (SQLite, un archivo en `data/agora.db`), no un mock en memoria.
+ * Si más adelante hace falta Postgres (por ejemplo, para correr con múltiples
+ * instancias del servidor a la vez), toda el acceso a datos pasa por
+ * `lib/db/queries.ts` — ahí es donde habría que migrar, sin tocar las páginas.
+ */
+import { DatabaseSync } from "node:sqlite";
+import path from "node:path";
+import fs from "node:fs";
+
+const DB_DIR = path.join(process.cwd(), "data");
+const DB_PATH = path.join(DB_DIR, "agora.db");
+
+const SCHEMA = `
+CREATE TABLE IF NOT EXISTS areas (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  active INTEGER NOT NULL DEFAULT 1,
+  sort_order INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS record_types (
+  id TEXT PRIMARY KEY,
+  code TEXT NOT NULL UNIQUE,
+  name TEXT NOT NULL,
+  description TEXT NOT NULL DEFAULT '',
+  color TEXT NOT NULL DEFAULT 'violet',
+  active INTEGER NOT NULL DEFAULT 1,
+  sort_order INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS records (
+  id TEXT PRIMARY KEY,
+  code TEXT NOT NULL UNIQUE,
+  type_id TEXT NOT NULL,
+  title TEXT NOT NULL,
+  description TEXT NOT NULL,
+  area_id TEXT,
+  process_name TEXT,
+  reporter_name TEXT NOT NULL,
+  event_date TEXT,
+  impact TEXT,
+  priority TEXT NOT NULL DEFAULT 'Media',
+  urgent INTEGER NOT NULL DEFAULT 0,
+  evidence_note TEXT,
+  comments TEXT,
+  status TEXT NOT NULL DEFAULT 'Recibido',
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS activity_log (
+  id TEXT PRIMARY KEY,
+  record_id TEXT NOT NULL,
+  event TEXT NOT NULL,
+  detail TEXT,
+  created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS code_counters (
+  type_code TEXT NOT NULL,
+  year INTEGER NOT NULL,
+  count INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (type_code, year)
+);
+
+-- Fase 4: mapeo de qué proyecto de Plane corresponde a cada área del portal.
+-- "plane_project_id" es el UUID real del proyecto en la instancia de Plane del
+-- usuario — nunca se inventa acá, lo carga el usuario en Configuración → Plane.
+CREATE TABLE IF NOT EXISTS plane_project_mappings (
+  id TEXT PRIMARY KEY,
+  area_id TEXT NOT NULL UNIQUE,
+  plane_project_id TEXT NOT NULL,
+  plane_project_name TEXT,
+  active INTEGER NOT NULL DEFAULT 1,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
+-- Fase 4: historial de intentos de sincronización con Plane (creación de work
+-- items desde el portal, y futuras corridas de sincronización periódica).
+CREATE TABLE IF NOT EXISTS plane_sync_logs (
+  id TEXT PRIMARY KEY,
+  direction TEXT NOT NULL,
+  record_id TEXT,
+  record_code TEXT,
+  plane_project_id TEXT,
+  event TEXT NOT NULL,
+  status TEXT NOT NULL,
+  detail TEXT,
+  created_at TEXT NOT NULL
+);
+
+-- Fase 6: tickets de Plane marcados como "no aplica al SGC" desde la pantalla
+-- Gestión de Calidad → Tickets Plane. No se borra el ticket de Plane ni se
+-- crea ningún registro — solo se recuerda la decisión para no volver a
+-- mostrarlo como pendiente de tipificar en cada carga de la pantalla.
+CREATE TABLE IF NOT EXISTS plane_ticket_dismissals (
+  id TEXT PRIMARY KEY,
+  plane_project_id TEXT NOT NULL,
+  plane_work_item_id TEXT NOT NULL UNIQUE,
+  plane_sequence_id TEXT,
+  reason TEXT,
+  created_at TEXT NOT NULL
+);
+
+-- Fase 7: vínculos entre dos registros del SGC (NC->AC, Q->NC, R->AC, etc.). Genérica
+-- y bidireccional a propósito: no se modela como una columna "AC relacionada" en
+-- records porque un mismo registro puede terminar vinculado a más de uno (a
+-- diferencia del límite de "un solo ticket de Plane por registro" que sí quedó
+-- documentado como limitación en la Fase 6).
+CREATE TABLE IF NOT EXISTS sgc_relationships (
+  id TEXT PRIMARY KEY,
+  from_record_id TEXT NOT NULL,
+  to_record_id TEXT NOT NULL,
+  label TEXT,
+  created_at TEXT NOT NULL
+);
+
+-- Fase 7: evidencia adjunta a un registro (texto/link, no carga de archivos —
+-- misma simplificación deliberada que "evidence_note" desde la Fase 3), a
+-- diferencia de "evidence_note" (un solo campo del reporte original) esto
+-- permite sumar varias evidencias a lo largo de la gestión del registro.
+CREATE TABLE IF NOT EXISTS sgc_evidence (
+  id TEXT PRIMARY KEY,
+  record_id TEXT NOT NULL,
+  description TEXT NOT NULL,
+  link TEXT,
+  created_by TEXT,
+  created_at TEXT NOT NULL
+);
+`;
+
+// Fase 4: columnas nuevas en `records` para guardar la relación con el work item
+// de Plane. Se agregan con ALTER TABLE (no en el CREATE TABLE de arriba) porque
+// instalaciones que ya venían de la Fase 3 ya tienen la tabla `records` creada
+// sin estas columnas — `CREATE TABLE IF NOT EXISTS` no las agrega solo.
+const RECORDS_PLANE_COLUMNS: { name: string; ddl: string }[] = [
+  { name: "plane_project_id", ddl: "ALTER TABLE records ADD COLUMN plane_project_id TEXT" },
+  { name: "plane_work_item_id", ddl: "ALTER TABLE records ADD COLUMN plane_work_item_id TEXT" },
+  { name: "plane_sequence_id", ddl: "ALTER TABLE records ADD COLUMN plane_sequence_id TEXT" },
+  { name: "plane_status", ddl: "ALTER TABLE records ADD COLUMN plane_status TEXT" },
+  { name: "plane_url", ddl: "ALTER TABLE records ADD COLUMN plane_url TEXT" },
+  { name: "plane_synced_at", ddl: "ALTER TABLE records ADD COLUMN plane_synced_at TEXT" },
+];
+
+function ensureRecordsPlaneColumns(db: DatabaseSync) {
+  const existing = new Set(
+    (db.prepare("PRAGMA table_info(records)").all() as { name: string }[]).map((col) => col.name),
+  );
+  for (const column of RECORDS_PLANE_COLUMNS) {
+    if (!existing.has(column.name)) db.exec(column.ddl);
+  }
+}
+
+// Fase 7: columnas de "gestión completa" — análisis de causa raíz y corrección
+// inmediata (principalmente para NC), verificación de eficacia y cierre
+// (principalmente para AC), y una fecha de vencimiento/compromiso genérica que
+// había quedado señalada como pendiente desde la Fase 3.
+const RECORDS_GESTION_COLUMNS: { name: string; ddl: string }[] = [
+  { name: "due_date", ddl: "ALTER TABLE records ADD COLUMN due_date TEXT" },
+  { name: "root_cause_method", ddl: "ALTER TABLE records ADD COLUMN root_cause_method TEXT" },
+  { name: "root_cause_analysis", ddl: "ALTER TABLE records ADD COLUMN root_cause_analysis TEXT" },
+  { name: "root_cause", ddl: "ALTER TABLE records ADD COLUMN root_cause TEXT" },
+  { name: "correction_action", ddl: "ALTER TABLE records ADD COLUMN correction_action TEXT" },
+  { name: "correction_responsible", ddl: "ALTER TABLE records ADD COLUMN correction_responsible TEXT" },
+  { name: "correction_date", ddl: "ALTER TABLE records ADD COLUMN correction_date TEXT" },
+  { name: "effectiveness_due_date", ddl: "ALTER TABLE records ADD COLUMN effectiveness_due_date TEXT" },
+  { name: "effectiveness_responsible", ddl: "ALTER TABLE records ADD COLUMN effectiveness_responsible TEXT" },
+  { name: "effectiveness_result", ddl: "ALTER TABLE records ADD COLUMN effectiveness_result TEXT" },
+  { name: "effectiveness_evidence", ddl: "ALTER TABLE records ADD COLUMN effectiveness_evidence TEXT" },
+  { name: "effective", ddl: "ALTER TABLE records ADD COLUMN effective INTEGER" },
+  { name: "closed_at", ddl: "ALTER TABLE records ADD COLUMN closed_at TEXT" },
+];
+
+function ensureRecordsGestionColumns(db: DatabaseSync) {
+  const existing = new Set(
+    (db.prepare("PRAGMA table_info(records)").all() as { name: string }[]).map((col) => col.name),
+  );
+  for (const column of RECORDS_GESTION_COLUMNS) {
+    if (!existing.has(column.name)) db.exec(column.ddl);
+  }
+}
+
+const SEED_AREAS: { id: string; name: string; sort_order: number }[] = [
+  { id: "operaciones", name: "Operaciones", sort_order: 1 },
+  { id: "comercial", name: "Comercial", sort_order: 2 },
+  { id: "delivery", name: "Delivery", sort_order: 3 },
+  { id: "rrhh", name: "RRHH", sort_order: 4 },
+  { id: "administracion", name: "Administración", sort_order: 5 },
+  { id: "it", name: "IT", sort_order: 6 },
+  { id: "producto", name: "Producto", sort_order: 7 },
+  { id: "calidad", name: "Calidad", sort_order: 8 },
+];
+
+const SEED_TYPES: {
+  id: string;
+  code: string;
+  name: string;
+  description: string;
+  color: string;
+  sort_order: number;
+}[] = [
+  { id: "nc", code: "NC", name: "No Conformidad", description: "Algo que estaba definido no se cumplió.", color: "red", sort_order: 1 },
+  { id: "ac", code: "AC", name: "Acción Correctiva", description: "Elimina la causa raíz de una No Conformidad.", color: "violet", sort_order: 2 },
+  { id: "ap", code: "AP", name: "Acción Preventiva", description: "Actúa sobre una situación potencial, antes de que ocurra.", color: "amber", sort_order: 3 },
+  { id: "om", code: "OM", name: "Oportunidad de Mejora", description: "Propuesta para hacer algo más simple, rápido o eficiente.", color: "green", sort_order: 4 },
+  { id: "q", code: "Q", name: "Queja", description: "Insatisfacción manifestada sobre un servicio o proceso.", color: "amber", sort_order: 5 },
+  { id: "s", code: "S", name: "Sugerencia", description: "Propuesta o recomendación de cualquier colaborador.", color: "blue", sort_order: 6 },
+  { id: "r", code: "R", name: "Reclamo", description: "Solicitud formal de resolución ante un incumplimiento.", color: "red", sort_order: 7 },
+];
+
+function migrate(db: DatabaseSync) {
+  db.exec(SCHEMA);
+  ensureRecordsPlaneColumns(db);
+  ensureRecordsGestionColumns(db);
+}
+
+function seed(db: DatabaseSync) {
+  const areaCount = db.prepare("SELECT COUNT(*) as count FROM areas").get() as { count: number } | undefined;
+  if (!areaCount || areaCount.count === 0) {
+    const insertArea = db.prepare("INSERT INTO areas (id, name, active, sort_order) VALUES (?, ?, 1, ?)");
+    for (const area of SEED_AREAS) insertArea.run(area.id, area.name, area.sort_order);
+  }
+
+  const typeCount = db.prepare("SELECT COUNT(*) as count FROM record_types").get() as
+    | { count: number }
+    | undefined;
+  if (!typeCount || typeCount.count === 0) {
+    const insertType = db.prepare(
+      "INSERT INTO record_types (id, code, name, description, color, active, sort_order) VALUES (?, ?, ?, ?, ?, 1, ?)",
+    );
+    for (const type of SEED_TYPES) {
+      insertType.run(type.id, type.code, type.name, type.description, type.color, type.sort_order);
+    }
+  }
+}
+
+declare global {
+  var __agoraDb: DatabaseSync | undefined;
+}
+
+function createConnection(): DatabaseSync {
+  if (!fs.existsSync(DB_DIR)) fs.mkdirSync(DB_DIR, { recursive: true });
+  const database = new DatabaseSync(DB_PATH);
+  database.exec("PRAGMA journal_mode = WAL;");
+  database.exec("PRAGMA busy_timeout = 5000;");
+  migrate(database);
+  seed(database);
+  return database;
+}
+
+// En dev, Next.js recarga módulos frecuentemente (HMR) — cachear en `global` evita
+// abrir una conexión nueva (y volver a correr el seed) en cada recarga.
+export const db: DatabaseSync = global.__agoraDb ?? createConnection();
+if (process.env.NODE_ENV !== "production") {
+  global.__agoraDb = db;
+}

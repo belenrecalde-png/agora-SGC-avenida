@@ -1,0 +1,378 @@
+{
+  "top": [
+    {
+      "id": "inicio",
+      "label": "Inicio",
+      "href": "/",
+      "icon": "Home"
+    },
+    {
+      "id": "mi-sgc",
+      "label": "Mi SGC",
+      "href": "/mi-sgc",
+      "icon": "User"
+    },
+    {
+      "id": "reportar",
+      "label": "Reportar",
+      "href": "/reportar",
+      "icon": "Flag",
+      "highlight": true
+    }
+  ],
+  "sections": [
+    {
+      "id": "gestion-calidad",
+      "label": "Gestión de Calidad",
+      "icon": "ClipboardList",
+      "items": [
+        {
+          "id": "registro-sgc",
+          "label": "Registro SGC",
+          "href": "/gestion-calidad/registro",
+          "icon": "ListChecks",
+          "phase": "Fase 3",
+          "description": "Listado único de todos los registros del SGC (NC, AC, AP, OM, Q, S, R) con código, tipo, estado, área, responsable y vencimientos, con filtros y buscador."
+        },
+        {
+          "id": "tickets-plane",
+          "label": "Tickets Plane",
+          "href": "/gestion-calidad/tickets-plane",
+          "icon": "Ticket",
+          "phase": "Fase 4 y 6",
+          "description": "Listado de work items de Plane con su estado, prioridad y responsable, con acciones para tipificar, vincular o marcar 'No aplica al SGC'."
+        },
+        {
+          "id": "no-conformidades",
+          "label": "No Conformidades",
+          "href": "/gestion-calidad/no-conformidades",
+          "icon": "AlertTriangle",
+          "phase": "Fase 7",
+          "description": "Gestión de incumplimientos de requisitos: corrección inmediata, análisis de causa raíz (5 Por Qué, Ishikawa), Acción Correctiva asociada y verificación de eficacia."
+        },
+        {
+          "id": "acciones-correctivas",
+          "label": "Acciones Correctivas",
+          "href": "/gestion-calidad/acciones-correctivas",
+          "icon": "Wrench",
+          "phase": "Fase 7",
+          "description": "Acciones para eliminar la causa raíz de una No Conformidad y evitar su recurrencia, con seguimiento de estado hasta el cierre verificado."
+        },
+        {
+          "id": "acciones-preventivas",
+          "label": "Acciones Preventivas",
+          "href": "/gestion-calidad/acciones-preventivas",
+          "icon": "ShieldAlert",
+          "phase": "Fase 7",
+          "description": "Acciones tomadas ante situaciones potenciales, antes de que el problema ocurra, relacionadas con riesgos, oportunidades y controles."
+        },
+        {
+          "id": "oportunidades-de-mejora",
+          "label": "Oportunidades de Mejora",
+          "href": "/gestion-calidad/oportunidades-de-mejora",
+          "icon": "Lightbulb",
+          "phase": "Fase 7",
+          "description": "Ideas para hacer más simple, rápido o eficiente un proceso, evaluadas con la matriz Impacto/Esfuerzo."
+        },
+        {
+          "id": "quejas",
+          "label": "Quejas",
+          "href": "/gestion-calidad/quejas",
+          "icon": "MessageSquareWarning",
+          "phase": "Fase 3 y 7",
+          "description": "Manifestaciones de insatisfacción sobre un servicio, proceso o atención, con posibilidad de vincularlas a una NC o AC."
+        },
+        {
+          "id": "sugerencias",
+          "label": "Sugerencias",
+          "href": "/gestion-calidad/sugerencias",
+          "icon": "MessageSquare",
+          "phase": "Fase 3 y 7",
+          "description": "Propuestas o recomendaciones de cualquier colaborador, con seguimiento de evaluación hasta su implementación."
+        },
+        {
+          "id": "reclamos",
+          "label": "Reclamos",
+          "href": "/gestion-calidad/reclamos",
+          "icon": "FileWarning",
+          "phase": "Fase 3 y 7",
+          "description": "Solicitudes formales de resolución ante un incumplimiento, con fecha compromiso y respuesta, vinculables a NC o AC."
+        }
+      ]
+    },
+    {
+      "id": "planificacion",
+      "label": "Planificación",
+      "icon": "Target",
+      "items": [
+        {
+          "id": "riesgos-y-oportunidades",
+          "label": "Riesgos y oportunidades",
+          "href": "/planificacion/riesgos-y-oportunidades",
+          "icon": "AlertOctagon",
+          "phase": "Fase 8",
+          "description": "Identificación, valoración (probabilidad × impacto) y tratamiento de riesgos y oportunidades, con matriz de criticidad inicial y residual."
+        },
+        {
+          "id": "contexto",
+          "label": "Contexto",
+          "href": "/planificacion/contexto",
+          "icon": "Compass",
+          "phase": "Fase 9",
+          "description": "Cuestiones internas y externas de la organización: análisis FODA/CAME y evaluación de pertinencia del cambio climático para el SGC."
+        },
+        {
+          "id": "partes-interesadas",
+          "label": "Partes interesadas",
+          "href": "/planificacion/partes-interesadas",
+          "icon": "Users",
+          "phase": "Fase 9",
+          "description": "Necesidades y expectativas de bancos, sellers, colaboradores, proveedores y demás partes interesadas, y su relación con riesgos y objetivos."
+        },
+        {
+          "id": "objetivos-de-calidad",
+          "label": "Objetivos de Calidad",
+          "href": "/planificacion/objetivos-de-calidad",
+          "icon": "Award",
+          "phase": "Fase 11",
+          "description": "Objetivos con meta, indicador asociado, responsable y frecuencia de seguimiento, con vista de cumplimiento mensual."
+        }
+      ]
+    },
+    {
+      "id": "procesos",
+      "label": "Procesos",
+      "icon": "Network",
+      "items": [
+        {
+          "id": "mapa-de-procesos",
+          "label": "Mapa de procesos",
+          "href": "/procesos/mapa",
+          "icon": "Map",
+          "phase": "Fase 10",
+          "description": "Vista general de los procesos de Avenida+ agrupados por tipo (estratégicos, operativos, de apoyo) y su interacción."
+        },
+        {
+          "id": "fichas-de-procesos",
+          "label": "Fichas de procesos",
+          "href": "/procesos/fichas",
+          "icon": "FileText",
+          "phase": "Fase 10",
+          "description": "Ficha completa de cada proceso: objetivo, alcance, entradas/salidas, indicadores, riesgos, documentos y registros asociados."
+        }
+      ]
+    },
+    {
+      "id": "evaluacion",
+      "label": "Evaluación",
+      "icon": "Gauge",
+      "items": [
+        {
+          "id": "indicadores",
+          "label": "Indicadores",
+          "href": "/evaluacion/indicadores",
+          "icon": "LineChart",
+          "phase": "Fase 11",
+          "description": "Indicadores de desempeño con fórmula, meta, tolerancia y tendencia histórica por proceso."
+        },
+        {
+          "id": "auditorias",
+          "label": "Auditorías",
+          "href": "/evaluacion/auditorias",
+          "icon": "ShieldCheck",
+          "phase": "Fase 13",
+          "description": "Programa de auditorías internas, externas, de cliente y de proveedor, con hallazgos que pueden generar NC, OM u observaciones."
+        },
+        {
+          "id": "satisfaccion",
+          "label": "Satisfacción",
+          "href": "/evaluacion/satisfaccion",
+          "icon": "ThumbsUp",
+          "phase": "Fase 13",
+          "description": "Seguimiento de la satisfacción del cliente y su relación con quejas, reclamos y acciones de mejora."
+        },
+        {
+          "id": "seguimiento",
+          "label": "Seguimiento",
+          "href": "/evaluacion/seguimiento",
+          "icon": "TrendingUp",
+          "phase": "Fase 14",
+          "description": "Tablero de seguimiento transversal: vencimientos, reincidencias y cumplimiento por área a lo largo del tiempo."
+        }
+      ]
+    },
+    {
+      "id": "documentacion",
+      "label": "Documentación",
+      "icon": "FolderOpen",
+      "items": [
+        {
+          "id": "documentos-del-sgc",
+          "label": "Documentos del SGC",
+          "href": "/documentacion/documentos",
+          "icon": "FileText",
+          "phase": "Fase 12",
+          "description": "Biblioteca de políticas, procedimientos, formularios, manuales y registros, con estado (Borrador, Vigente, Obsoleto)."
+        },
+        {
+          "id": "instructivos",
+          "label": "Instructivos",
+          "href": "/documentacion/instructivos",
+          "icon": "BookOpen",
+          "phase": "Fase 12",
+          "description": "Guías paso a paso para tareas del SGC, Plane y Calidad, cada una con un botón de acción directa al final."
+        },
+        {
+          "id": "registros",
+          "label": "Registros",
+          "href": "/documentacion/registros",
+          "icon": "FileStack",
+          "phase": "Fase 12",
+          "description": "Evidencias de que algo ocurrió: formularios completados, actas, verificaciones y demás registros del sistema."
+        },
+        {
+          "id": "documentos-externos",
+          "label": "Documentos externos",
+          "href": "/documentacion/externos",
+          "icon": "ExternalLink",
+          "phase": "Fase 12",
+          "description": "Normativas, contratos y documentación de origen externo necesaria para el funcionamiento del SGC."
+        }
+      ]
+    },
+    {
+      "id": "centro-de-conocimiento",
+      "label": "Centro de Conocimiento",
+      "icon": "GraduationCap",
+      "items": [
+        {
+          "id": "conceptos",
+          "label": "Conceptos",
+          "href": "/centro-de-conocimiento/conceptos",
+          "icon": "Layers",
+          "phase": "Fase 2",
+          "description": "Glosario vivo de Calidad: qué es, en términos simples, ejemplo en Avenida+, por qué importa y qué hacer si lo detectás."
+        },
+        {
+          "id": "iso-9001",
+          "label": "ISO 9001",
+          "href": "/centro-de-conocimiento/iso-9001",
+          "icon": "ShieldCheck",
+          "phase": "Fase 2",
+          "description": "Mapa de la norma explicado en lenguaje simple: Contexto, Liderazgo, Planificación, Apoyo, Operación, Evaluación y Mejora."
+        },
+        {
+          "id": "calidad-en-2-minutos",
+          "label": "Calidad en 2 minutos",
+          "href": "/centro-de-conocimiento/calidad-en-2-minutos",
+          "icon": "Sparkles",
+          "phase": "Fase 2",
+          "description": "Cápsulas breves que responden en menos de 2 minutos las preguntas más comunes sobre Calidad."
+        },
+        {
+          "id": "comparador",
+          "label": "Comparador de conceptos",
+          "href": "/centro-de-conocimiento/comparador",
+          "icon": "GitCompare",
+          "phase": "Fase 2",
+          "description": "Diferencias clave entre conceptos que suelen confundirse: NC vs OM, Queja vs Reclamo, Riesgo vs Problema, y más."
+        },
+        {
+          "id": "faq",
+          "label": "Preguntas frecuentes",
+          "href": "/centro-de-conocimiento/faq",
+          "icon": "HelpCircle",
+          "phase": "Fase 2",
+          "description": "Respuestas directas a las dudas más habituales de cualquier colaborador sobre el SGC."
+        }
+      ]
+    },
+    {
+      "id": "configuracion",
+      "label": "Configuración",
+      "icon": "Settings",
+      "items": [
+        {
+          "id": "areas",
+          "label": "Áreas",
+          "href": "/configuracion/areas",
+          "icon": "Building2",
+          "phase": "Fase 3",
+          "description": "Administración de las áreas de Avenida+ usadas para clasificar registros, procesos y responsables."
+        },
+        {
+          "id": "procesos-config",
+          "label": "Procesos",
+          "href": "/configuracion/procesos",
+          "icon": "Workflow",
+          "phase": "Fase 10",
+          "description": "Alta y edición de los procesos del mapa de procesos y sus responsables."
+        },
+        {
+          "id": "tipos",
+          "label": "Tipos",
+          "href": "/configuracion/tipos",
+          "icon": "Tag",
+          "phase": "Fase 3",
+          "description": "Administración de los tipos de registro del SGC (NC, AC, AP, OM, Q, S, R y los que se agreguen) sin necesidad de tocar código."
+        },
+        {
+          "id": "estados",
+          "label": "Estados",
+          "href": "/configuracion/estados",
+          "icon": "CircleDot",
+          "phase": "Fase 3",
+          "description": "Estados posibles de cada tipo de registro y sus transiciones permitidas."
+        },
+        {
+          "id": "usuarios",
+          "label": "Usuarios",
+          "href": "/configuracion/usuarios",
+          "icon": "UserCog",
+          "phase": "Fase 3",
+          "description": "Alta, edición y desactivación de usuarios del portal y su área/rol asignado."
+        },
+        {
+          "id": "roles",
+          "label": "Roles",
+          "href": "/configuracion/roles",
+          "icon": "KeyRound",
+          "phase": "Fase 3",
+          "description": "Roles (Administrador SGC, Calidad, Responsable de Área, Colaborador, Consulta) y permisos granulares asociados."
+        },
+        {
+          "id": "plane-config",
+          "label": "Plane",
+          "href": "/configuracion/plane",
+          "icon": "Plug",
+          "phase": "Fase 4",
+          "description": "Estado de conexión con Plane, credenciales enmascaradas, mapeo de proyectos por área, prueba de conexión y sincronización manual."
+        },
+        {
+          "id": "apps-script",
+          "label": "Apps Script",
+          "href": "/configuracion/apps-script",
+          "icon": "ScrollText",
+          "phase": "Fase 5",
+          "description": "Configuración de la integración con Google Apps Script y Google Sheets para automatizaciones y envío de mails."
+        },
+        {
+          "id": "integraciones",
+          "label": "Integraciones",
+          "href": "/configuracion/integraciones",
+          "icon": "Boxes",
+          "phase": "Fase 4",
+          "description": "Panel general de integraciones activas del portal (Plane, Apps Script y las que se sumen a futuro)."
+        },
+        {
+          "id": "logs",
+          "label": "Logs",
+          "href": "/configuracion/logs",
+          "icon": "ScrollText",
+          "phase": "Fase 4",
+          "description": "Historial de sincronizaciones con Plane: tickets revisados, actualizados y errores por corrida."
+        }
+      ]
+    }
+  ]
+}
