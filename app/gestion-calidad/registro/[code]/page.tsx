@@ -18,6 +18,7 @@ import {
   listEvidence,
   listRecordTypes,
   listRelationshipsForRecord,
+  listRiskRelationshipsForRecord,
 } from "@/lib/db/queries";
 import { isPlaneConfigured } from "@/lib/plane/client";
 
@@ -71,6 +72,7 @@ export default async function RegistroDetallePage({
   const area = record.area_id ? listAreas().find((a) => a.id === record.area_id) : undefined;
   const history = listActivityLog(record.id);
   const relationships = listRelationshipsForRecord(record.id);
+  const riskLinks = listRiskRelationshipsForRecord(record.id);
   const evidence = listEvidence(record.id);
 
   const isNc = type?.code === "NC";
@@ -82,7 +84,8 @@ export default async function RegistroDetallePage({
   if (isNc) tabs.push({ key: "analisis", label: "Análisis y corrección" });
   if (isAc) tabs.push({ key: "verificacion", label: "Verificación y cierre" });
   tabs.push({ key: "evidencias", label: `Evidencias${evidence.length ? ` (${evidence.length})` : ""}` });
-  tabs.push({ key: "relaciones", label: `Relaciones${relationships.length ? ` (${relationships.length})` : ""}` });
+  const relationsCount = relationships.length + riskLinks.length;
+  tabs.push({ key: "relaciones", label: `Relaciones${relationsCount ? ` (${relationsCount})` : ""}` });
   tabs.push({ key: "historial", label: "Historial" });
 
   const validTabKeys = new Set<string>(tabs.map((t) => t.key));
@@ -218,7 +221,9 @@ export default async function RegistroDetallePage({
 
       {activeTab === "evidencias" && <EvidenciasTab record={record} evidence={evidence} />}
 
-      {activeTab === "relaciones" && <RelacionesTab record={record} relationships={relationships} />}
+      {activeTab === "relaciones" && (
+        <RelacionesTab record={record} relationships={relationships} riskLinks={riskLinks} />
+      )}
 
       {activeTab === "historial" && (
         <Card className="flex flex-col divide-y divide-border p-0">

@@ -139,6 +139,62 @@ CREATE TABLE IF NOT EXISTS sgc_evidence (
   created_by TEXT,
   created_at TEXT NOT NULL
 );
+
+-- Fase 8: Riesgos y Oportunidades. A diferencia de NC/AC/AP/OM/Q/S/R (que viven
+-- en "records" con un type_id), la spec los modela como una entidad propia
+-- ("sgc_risks" en el modelo de datos de la sección 65) — no es un tipo de
+-- registro más. "kind" distingue 'riesgo' de 'oportunidad'; ambos comparten el
+-- mismo prefijo de código (RISK-2026-001, ver generateSgcCode) porque la spec
+-- solo lista ese prefijo para ambos.
+CREATE TABLE IF NOT EXISTS sgc_risks (
+  id TEXT PRIMARY KEY,
+  code TEXT NOT NULL UNIQUE,
+  kind TEXT NOT NULL,
+  source TEXT,
+  area_id TEXT,
+  process_name TEXT,
+  activity TEXT,
+  description TEXT NOT NULL,
+  detail TEXT,
+  existing_control TEXT,
+  probability_initial INTEGER,
+  impact_initial INTEGER,
+  treatment_plan TEXT,
+  responsible TEXT,
+  due_date TEXT,
+  status TEXT NOT NULL DEFAULT 'Identificado',
+  verification TEXT,
+  probability_residual INTEGER,
+  impact_residual INTEGER,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  closed_at TEXT
+);
+
+-- Fase 8: controles existentes de un riesgo/oportunidad. Lista (no un campo
+-- único) porque a lo largo de la gestión se pueden ir sumando más controles,
+-- cada uno con su propia evaluación de eficacia — misma filosofía que
+-- "sgc_evidence" desde la Fase 7.
+CREATE TABLE IF NOT EXISTS sgc_risk_controls (
+  id TEXT PRIMARY KEY,
+  risk_id TEXT NOT NULL,
+  description TEXT NOT NULL,
+  responsible TEXT,
+  effectiveness TEXT,
+  created_at TEXT NOT NULL
+);
+
+-- Fase 8: vínculo entre un riesgo/oportunidad y un registro SGC existente
+-- (NC/AC/OM/etc — "record_id" referencia records.id). Tabla propia en vez de
+-- reutilizar "sgc_relationships" porque esa tabla vincula dos records entre
+-- sí, y un riesgo no es un record.
+CREATE TABLE IF NOT EXISTS sgc_risk_relationships (
+  id TEXT PRIMARY KEY,
+  risk_id TEXT NOT NULL,
+  record_id TEXT NOT NULL,
+  label TEXT,
+  created_at TEXT NOT NULL
+);
 `;
 
 // Fase 4: columnas nuevas en `records` para guardar la relación con el work item

@@ -1,5 +1,12 @@
 import { randomUUID } from "node:crypto";
 import { db } from "./client";
+import { getRiskBand, getRiskScore, type RiskBand, type RiskKind } from "@/lib/risk-scoring";
+
+// Reexportados tal cual para que el resto del código (Server Components) los
+// siga importando desde "@/lib/db/queries" sin cambios — ver el comentario en
+// lib/risk-scoring.ts sobre por qué la lógica pura vive en un módulo aparte.
+export { getRiskBand, getRiskScore };
+export type { RiskBand, RiskKind };
 
 export type Area = {
   id: string;
@@ -973,4 +980,366 @@ export function listEvidence(recordId: string): RecordEvidence[] {
     .prepare("SELECT * FROM sgc_evidence WHERE record_id = ? ORDER BY created_at ASC")
     .all(recordId)
     .map(rowToEvidence);
+}
+
+// ---------- Fase 8: Riesgos y Oportunidades ----------
+//
+// A diferencia de NC/AC/AP/OM/Q/S/R (que viven en "records"), Riesgos y
+// Oportunidades son una entidad propia ("sgc_risks"). "kind" las distingue.
+// La matriz de valoración es probabilidad (1-3) × impacto (1-5) = score
+// (1-15); los umbrales de la matriz quedan hardcodeados acá (no editables
+// desde Configuración todavía — recorte deliberado de esta fase, documentado
+// en claude/progreso-implementacion.md).
+
+export type SgcRisk = {
+  id: string;
+  code: string;
+  kind: RiskKind;
+  source: string | null;
+  area_id: string | null;
+  process_name: string | null;
+  activity: string | null;
+  description: string;
+  detail: string | null;
+  existing_control: string | null;
+  probability_initial: number | null;
+  impact_initial: number | null;
+  treatment_plan: string | null;
+  responsible: string | null;
+  due_date: string | null;
+  status: string;
+  verification: string | null;
+  probability_residual: number | null;
+  impact_residual: number | null;
+  created_at: string;
+  updated_at: string;
+  closed_at: string | null;
+};
+
+export type RiskControl = {
+  id: string;
+  risk_id: string;
+  description: string;
+  responsible: string | null;
+  effectiveness: string | null;
+  created_at: string;
+};
+
+// El registro SGC ya resuelto, visto desde el riesgo (listRiskRelationshipsForRisk).
+export type RiskRecordLink = {
+  id: string;
+  risk_id: string;
+  record_id: string;
+  label: string | null;
+  created_at: string;
+  record: SgcRecord;
+};
+
+// El riesgo ya resuelto, visto desde el registro (listRiskRelationshipsForRecord).
+export type RecordRiskLink = {
+  id: string;
+  risk_id: string;
+  record_id: string;
+  label: string | null;
+  created_at: string;
+  risk: SgcRisk;
+};
+
+function rowToRisk(row: Record<string, unknown>): SgcRisk {
+  return {
+    id: row.id as string,
+    code: row.code as string,
+    kind: row.kind as RiskKind,
+    source: (row.source as string) ?? null,
+    area_id: (row.area_id as string) ?? null,
+    process_name: (row.process_name as string) ?? null,
+    activity: (row.activity as string) ?? null,
+    description: row.description as string,
+    detail: (row.detail as string) ?? null,
+    existing_control: (row.existing_control as string) ?? null,
+    probability_initial: (row.probability_initial as number) ?? null,
+    impact_initial: (row.impact_initial as number) ?? null,
+    treatment_plan: (row.treatment_plan as string) ?? null,
+    responsible: (row.responsible as string) ?? null,
+    due_date: (row.due_date as string) ?? null,
+    status: row.status as string,
+    verification: (row.verification as string) ?? null,
+    probability_residual: (row.probability_residual as number) ?? null,
+    impact_residual: (row.impact_residual as number) ?? null,
+    created_at: row.created_at as string,
+    updated_at: row.updated_at as string,
+    closed_at: (row.closed_at as string) ?? null,
+  };
+}
+
+function rowToRiskControl(row: Record<string, unknown>): RiskControl {
+  return {
+    id: row.id as string,
+    risk_id: row.risk_id as string,
+    description: row.description as string,
+    responsible: (row.responsible as string) ?? null,
+    effectiveness: (row.effectiveness as string) ?? null,
+    created_at: row.created_at as string,
+  };
+}
+
+export const RISK_STATUS_FLOW = [
+  "Identificado",
+  "En tratamiento",
+  "En seguimiento",
+  "Mitigado",
+  "Materializado",
+  "Cerrado",
+] as const;
+
+export const OPPORTUNITY_STATUS_FLOW = [
+  "Identificada",
+  "En evaluación",
+  "En curso",
+  "Aprovechada",
+  "Descartada",
+  "Cerrada",
+] as const;
+
+const RISK_CLOSING_STATUSES = new Set(["Cerrado", "Cerrada", "Mitigado", "Aprovechada"]);
+
+export type CreateRiskInput = {
+  kind: RiskKind;
+  source: string | null;
+  areaId: string | null;
+  processName: string | null;
+  activity: string | null;
+  description: string;
+  detail: string | null;
+  existingControl: string | null;
+  probabilityInitial: number | null;
+  impactInitial: number | null;
+  treatmentPlan: string | null;
+  responsible: string | null;
+  dueDate: string | null;
+};
+
+export function createRisk(input: CreateRiskInput): SgcRisk {
+  const code = generateSgcCode("RISK");
+  const id = randomUUID();
+  const now = new Date().toISOString();
+  const initialStatus = input.kind === "oportunidad" ? "Identificada" : "Identificado";
+
+  db.prepare(
+    `INSERT INTO sgc_risks (
+      id, code, kind, source, area_id, process_name, activity, description, detail,
+      existing_control, probability_initial, impact_initial, treatment_plan, responsible,
+      due_date, status, created_at, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  ).run(
+    id,
+    code,
+    input.kind,
+    input.source,
+    input.areaId,
+    input.processName,
+    input.activity,
+    input.description,
+    input.detail,
+    input.existingControl,
+    input.probabilityInitial,
+    input.impactInitial,
+    input.treatmentPlan,
+    input.responsible,
+    input.dueDate,
+    initialStatus,
+    now,
+    now,
+  );
+
+  addActivityLog(id, `${input.kind === "oportunidad" ? "Oportunidad" : "Riesgo"} identificado`, `Se creó ${code}.`);
+
+  return getRiskByCode(code)!;
+}
+
+export function listRisks(filter: { kind?: RiskKind } = {}): SgcRisk[] {
+  const sql = filter.kind
+    ? "SELECT * FROM sgc_risks WHERE kind = ? ORDER BY created_at DESC"
+    : "SELECT * FROM sgc_risks ORDER BY created_at DESC";
+  return (filter.kind ? db.prepare(sql).all(filter.kind) : db.prepare(sql).all()).map(rowToRisk);
+}
+
+export function getRiskByCode(code: string): SgcRisk | undefined {
+  const row = db.prepare("SELECT * FROM sgc_risks WHERE code = ?").get(code);
+  return row ? rowToRisk(row) : undefined;
+}
+
+export function getRiskById(id: string): SgcRisk | undefined {
+  const row = db.prepare("SELECT * FROM sgc_risks WHERE id = ?").get(id);
+  return row ? rowToRisk(row) : undefined;
+}
+
+/**
+ * Guarda identificación + valoración inicial + tratamiento en un solo form
+ * (mismo criterio de "un form por tab" que `updateRecordAnalysis` en la Fase 7).
+ */
+export function updateRiskTreatment(
+  riskId: string,
+  input: {
+    source: string | null;
+    areaId: string | null;
+    processName: string | null;
+    activity: string | null;
+    description: string;
+    detail: string | null;
+    existingControl: string | null;
+    probabilityInitial: number | null;
+    impactInitial: number | null;
+    treatmentPlan: string | null;
+    responsible: string | null;
+    dueDate: string | null;
+  },
+): SgcRisk {
+  const now = new Date().toISOString();
+  db.prepare(
+    `UPDATE sgc_risks SET
+      source = ?, area_id = ?, process_name = ?, activity = ?, description = ?, detail = ?,
+      existing_control = ?, probability_initial = ?, impact_initial = ?, treatment_plan = ?,
+      responsible = ?, due_date = ?, updated_at = ?
+     WHERE id = ?`,
+  ).run(
+    input.source,
+    input.areaId,
+    input.processName,
+    input.activity,
+    input.description,
+    input.detail,
+    input.existingControl,
+    input.probabilityInitial,
+    input.impactInitial,
+    input.treatmentPlan,
+    input.responsible,
+    input.dueDate,
+    now,
+    riskId,
+  );
+  addActivityLog(riskId, "Identificación y tratamiento actualizados", input.treatmentPlan ?? undefined);
+  return getRiskById(riskId)!;
+}
+
+export function createRiskControl(
+  riskId: string,
+  input: { description: string; responsible: string | null; effectiveness: string | null },
+): void {
+  db.prepare(
+    "INSERT INTO sgc_risk_controls (id, risk_id, description, responsible, effectiveness, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+  ).run(randomUUID(), riskId, input.description, input.responsible, input.effectiveness, new Date().toISOString());
+  addActivityLog(riskId, "Control agregado", input.description);
+}
+
+export function listRiskControls(riskId: string): RiskControl[] {
+  return db
+    .prepare("SELECT * FROM sgc_risk_controls WHERE risk_id = ? ORDER BY created_at ASC")
+    .all(riskId)
+    .map(rowToRiskControl);
+}
+
+export function updateRiskResidual(
+  riskId: string,
+  input: { probabilityResidual: number | null; impactResidual: number | null; verification: string | null },
+): SgcRisk {
+  const now = new Date().toISOString();
+  db.prepare(
+    `UPDATE sgc_risks SET probability_residual = ?, impact_residual = ?, verification = ?, updated_at = ? WHERE id = ?`,
+  ).run(input.probabilityResidual, input.impactResidual, input.verification, now, riskId);
+  addActivityLog(riskId, "Valoración residual registrada", input.verification ?? undefined);
+  return getRiskById(riskId)!;
+}
+
+/**
+ * Cambia el estado de un riesgo/oportunidad. Bloquea el pase a un estado de
+ * cierre si todavía no hay valoración residual ni verificación registrada —
+ * mismo criterio que el bloqueo de cierre de AC en la Fase 7
+ * (`updateRecordStatus`): no se puede demostrar que el tratamiento funcionó
+ * sin haber vuelto a valorar el riesgo.
+ */
+export function updateRiskStatus(riskId: string, newStatus: string): SgcRisk {
+  const risk = getRiskById(riskId);
+  if (!risk) throw new Error("Riesgo no encontrado.");
+
+  const hasResidual = risk.probability_residual !== null || risk.impact_residual !== null;
+  const hasVerification = Boolean(risk.verification && risk.verification.trim());
+  if (RISK_CLOSING_STATUSES.has(newStatus) && !hasResidual && !hasVerification) {
+    throw new Error(
+      `No se puede pasar a "${newStatus}": falta registrar la verificación y la valoración residual.`,
+    );
+  }
+
+  const now = new Date().toISOString();
+  const closedAt = RISK_CLOSING_STATUSES.has(newStatus) ? now : risk.closed_at;
+  db.prepare("UPDATE sgc_risks SET status = ?, closed_at = ?, updated_at = ? WHERE id = ?").run(
+    newStatus,
+    closedAt,
+    now,
+    riskId,
+  );
+  addActivityLog(riskId, "Cambio de estado", `${risk.status} → ${newStatus}`);
+  return getRiskById(riskId)!;
+}
+
+export function createRiskRelationship(riskId: string, recordCode: string, label?: string | null): RiskRecordLink {
+  const record = getRecordByCode(recordCode.trim().toUpperCase());
+  if (!record) throw new Error(`No existe ningún registro con el código "${recordCode}".`);
+
+  const id = randomUUID();
+  const now = new Date().toISOString();
+  db.prepare(
+    "INSERT INTO sgc_risk_relationships (id, risk_id, record_id, label, created_at) VALUES (?, ?, ?, ?, ?)",
+  ).run(id, riskId, record.id, label ?? null, now);
+
+  const risk = getRiskById(riskId);
+  addActivityLog(riskId, "Vinculado a un registro SGC", `Vinculado a ${record.code}${label ? ` (${label})` : ""}.`);
+  addActivityLog(
+    record.id,
+    "Vinculado a un riesgo/oportunidad",
+    `Vinculado a ${risk?.code ?? riskId}${label ? ` (${label})` : ""}.`,
+  );
+
+  return { id, risk_id: riskId, record_id: record.id, label: label ?? null, created_at: now, record };
+}
+
+export function listRiskRelationshipsForRisk(riskId: string): RiskRecordLink[] {
+  const rows = db
+    .prepare("SELECT * FROM sgc_risk_relationships WHERE risk_id = ? ORDER BY created_at ASC")
+    .all(riskId) as Record<string, unknown>[];
+  const results: RiskRecordLink[] = [];
+  for (const row of rows) {
+    const record = getRecordById(row.record_id as string);
+    if (!record) continue;
+    results.push({
+      id: row.id as string,
+      risk_id: row.risk_id as string,
+      record_id: row.record_id as string,
+      label: (row.label as string) ?? null,
+      created_at: row.created_at as string,
+      record,
+    });
+  }
+  return results;
+}
+
+/** Riesgos/oportunidades vinculados a un registro SGC — para mostrar en su tab de Relaciones. */
+export function listRiskRelationshipsForRecord(recordId: string): RecordRiskLink[] {
+  const rows = db
+    .prepare("SELECT * FROM sgc_risk_relationships WHERE record_id = ? ORDER BY created_at ASC")
+    .all(recordId) as Record<string, unknown>[];
+  const results: RecordRiskLink[] = [];
+  for (const row of rows) {
+    const risk = getRiskById(row.risk_id as string);
+    if (!risk) continue;
+    results.push({
+      id: row.id as string,
+      risk_id: row.risk_id as string,
+      record_id: row.record_id as string,
+      label: (row.label as string) ?? null,
+      created_at: row.created_at as string,
+      risk,
+    });
+  }
+  return results;
 }

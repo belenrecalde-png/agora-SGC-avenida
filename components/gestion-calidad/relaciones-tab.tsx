@@ -1,9 +1,9 @@
 import Link from "next/link";
-import { ArrowLeftRight } from "lucide-react";
+import { AlertOctagon, ArrowLeftRight } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Badge, type BadgeTone } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import type { RecordRelationship, SgcRecord } from "@/lib/db/queries";
+import { getRiskBand, getRiskScore, type RecordRiskLink, type RecordRelationship, type SgcRecord } from "@/lib/db/queries";
 import { vincularRegistroAction } from "@/lib/actions/gestion";
 
 const inputClass =
@@ -16,13 +16,51 @@ function statusTone(status: string): BadgeTone {
   return "blue";
 }
 
-export function RelacionesTab({ record, relationships }: { record: SgcRecord; relationships: RecordRelationship[] }) {
+export function RelacionesTab({
+  record,
+  relationships,
+  riskLinks = [],
+}: {
+  record: SgcRecord;
+  relationships: RecordRelationship[];
+  riskLinks?: RecordRiskLink[];
+}) {
   return (
     <div className="flex flex-col gap-6">
-      {relationships.length === 0 ? (
-        <Card className="flex flex-col items-center gap-2 p-8 text-center">
-          <p className="text-sm text-muted">Este registro todavía no está vinculado a ningún otro.</p>
+      {riskLinks.length > 0 && (
+        <Card className="flex flex-col divide-y divide-border p-0">
+          {riskLinks.map((link) => {
+            const score = getRiskScore(link.risk.probability_initial, link.risk.impact_initial);
+            const band = getRiskBand(link.risk.kind, score);
+            return (
+              <Link
+                key={link.id}
+                href={`/planificacion/riesgos-y-oportunidades/${link.risk.code}`}
+                className="flex flex-wrap items-center justify-between gap-2 p-4 hover:bg-avenida-violet-light/10"
+              >
+                <div className="flex items-start gap-3">
+                  <span className="mt-0.5 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-avenida-violet-light text-avenida-violet">
+                    <AlertOctagon className="h-3.5 w-3.5" />
+                  </span>
+                  <div className="flex flex-col gap-0.5">
+                    <p className="text-sm font-medium text-avenida-violet">{link.risk.code}</p>
+                    <p className="text-sm text-avenida-black">{link.risk.description}</p>
+                    {link.label && <p className="text-xs text-muted">{link.label}</p>}
+                  </div>
+                </div>
+                <Badge tone={band.tone}>{score !== null ? `${score} — ${band.label}` : band.label}</Badge>
+              </Link>
+            );
+          })}
         </Card>
+      )}
+
+      {relationships.length === 0 ? (
+        riskLinks.length === 0 && (
+          <Card className="flex flex-col items-center gap-2 p-8 text-center">
+            <p className="text-sm text-muted">Este registro todavía no está vinculado a ningún otro.</p>
+          </Card>
+        )
       ) : (
         <Card className="flex flex-col divide-y divide-border p-0">
           {relationships.map((rel) => (

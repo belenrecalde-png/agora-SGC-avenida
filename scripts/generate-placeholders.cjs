@@ -27,6 +27,7 @@ const IMPLEMENTED = new Set([
   "/configuracion/plane",
   "/configuracion/logs",
   "/gestion-calidad/tickets-plane",
+  "/planificacion/riesgos-y-oportunidades",
 ]);
 
 function toAppDir(href) {
