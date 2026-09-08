@@ -415,6 +415,10 @@ Con la Fase 14 cerrada, quedaron completas todas las fases que el usuario confir
 
 Archivos clave para retomar: `lib/auth/` (session, google, dal, roles), `proxy.ts`, `app/api/auth/`, `app/login/`, `app/configuracion/usuarios/`, `lib/actions/auth.ts`, cambios en `app/layout.tsx`/`components/layout/app-shell.tsx`/`header.tsx`.
 
+## Rediseño visual de `/login` (2026-09-08)
+
+Después de revisar las pantallas con capturas reales (logueada como admin), el usuario pidió explícitamente hacer el login "más amigable, con imágenes de calidad" — aclarado por pregunta directa: no fotos reales (no había ninguna para pasar), sino una ilustración/gráfico armado con la paleta de marca. Se rediseñó `app/login/page.tsx`: pasó de una tarjeta centrada mínima a un layout de dos columnas (mismo lenguaje que el `Hero` del Home) — a la izquierda el login en sí (logo, copy más cálido, botón de Google con el ícono real multicolor), a la derecha un panel ilustrado oculto en mobile (`lg:flex`) con el degradé de marca (`avenida-blue` → `avenida-violet`), círculos difuminados decorativos, y 4 chips flotantes con íconos de `lucide-react` (Calidad/Personas/Mejora/Conocimiento) más una frase reforzando el mensaje cultural del proyecto ("La calidad no pertenece solo al área de Calidad"). Sin dependencias nuevas — todo con Tailwind + lucide-react ya existentes. Verificado visualmente con Playwright en desktop y mobile antes de que el usuario aprobara. `tsc`, `lint` y `build` sin errores.
+
 ## Próxima fase a implementar
 
 1. ~~El usuario carga las credenciales reales de Google Cloud Console y prueba el login real~~ — ✅ hecho el 2026-09-07, ver la sección de autenticación arriba.
