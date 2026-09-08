@@ -175,7 +175,7 @@ export function SidebarContent({
 
 export function Sidebar() {
   return (
-    <aside className="hidden lg:block">
+    <aside className="sticky top-0 hidden h-screen lg:block">
       <SidebarContent />
     </aside>
   );
