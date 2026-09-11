@@ -532,15 +532,17 @@ declare global {
 function createConnection(): DatabaseSync {
   if (!fs.existsSync(DB_DIR)) fs.mkdirSync(DB_DIR, { recursive: true });
   const database = new DatabaseSync(DB_PATH);
-  database.exec("PRAGMA journal_mode = WAL;");
-  // 30s, no 5s: en un build de producción real (ej. Railway) Next.js evalúa
-  // decenas de páginas en paralelo, y la primera vez que corre, cada worker
-  // es un proceso aparte que puede intentar crear/migrar/sembrar el archivo
-  // al mismo tiempo — 5s no alcanzaba y el build fallaba con "database is
-  // locked" (SQLITE_BUSY). `busy_timeout` hace que SQLite espere en vez de
-  // fallar al toque; localmente el archivo ya existe casi siempre, así que
-  // este valor más alto no se nota en desarrollo.
+  // `busy_timeout` va PRIMERO, antes de cualquier otro PRAGMA/consulta — si
+  // no, el propio cambio a modo WAL de la línea siguiente puede chocar con
+  // otro proceso que tiene el lock, sin tener todavía ninguna espera
+  // configurada, y tirar "database is locked" antes de llegar a la línea que
+  // la establece (pasó exactamente así en el primer intento de deploy). En
+  // un build de producción real (ej. Railway) Next.js evalúa decenas de
+  // páginas en paralelo, y la primera vez que corre, cada worker es un
+  // proceso aparte que puede intentar crear/migrar/sembrar el archivo al
+  // mismo tiempo — localmente casi no se nota porque el archivo ya existe.
   database.exec("PRAGMA busy_timeout = 30000;");
+  database.exec("PRAGMA journal_mode = WAL;");
   migrate(database);
   seed(database);
   return database;
