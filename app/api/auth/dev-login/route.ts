@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { absoluteAppUrl } from "@/lib/auth/google";
 import { createSessionCookie } from "@/lib/auth/session";
 import { isAdminEmail } from "@/lib/auth/roles";
 import { upsertUserFromGoogle } from "@/lib/db/queries";
@@ -33,5 +34,5 @@ export async function GET(request: NextRequest) {
     role: user.role,
   });
 
-  return NextResponse.redirect(new URL("/", request.url));
+  return NextResponse.redirect(absoluteAppUrl("/"));
 }

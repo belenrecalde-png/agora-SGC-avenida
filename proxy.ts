@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { cookies } from "next/headers";
+import { absoluteAppUrl } from "@/lib/auth/google";
 import { decryptSession, SESSION_COOKIE_NAME } from "@/lib/auth/session";
 
 /**
@@ -25,7 +26,7 @@ export async function proxy(request: NextRequest) {
   const session = token ? await decryptSession(token) : null;
 
   if (!session) {
-    const loginUrl = new URL("/login", request.url);
+    const loginUrl = absoluteAppUrl("/login");
     loginUrl.searchParams.set("next", pathname);
     return NextResponse.redirect(loginUrl);
   }

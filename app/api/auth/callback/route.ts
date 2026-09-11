@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { cookies } from "next/headers";
-import { exchangeCodeForUser } from "@/lib/auth/google";
+import { absoluteAppUrl, exchangeCodeForUser } from "@/lib/auth/google";
 import { createSessionCookie } from "@/lib/auth/session";
 import { isAdminEmail } from "@/lib/auth/roles";
 import { upsertUserFromGoogle } from "@/lib/db/queries";
@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
   cookieStore.delete(STATE_COOKIE);
 
   if (!code || !state || !expectedState || state !== expectedState) {
-    return NextResponse.redirect(new URL("/login?error=state", request.url));
+    return NextResponse.redirect(absoluteAppUrl("/login?error=state"));
   }
 
   try {
@@ -34,7 +34,7 @@ export async function GET(request: NextRequest) {
     });
 
     if (!user.active) {
-      return NextResponse.redirect(new URL("/login?error=inactive", request.url));
+      return NextResponse.redirect(absoluteAppUrl("/login?error=inactive"));
     }
 
     await createSessionCookie({
@@ -52,9 +52,9 @@ export async function GET(request: NextRequest) {
     const next = encodedNext ? decodeURIComponent(encodedNext) : "/";
     const isSafeNext = next.startsWith("/") && !next.startsWith("//");
 
-    return NextResponse.redirect(new URL(isSafeNext ? next : "/", request.url));
+    return NextResponse.redirect(absoluteAppUrl(isSafeNext ? next : "/"));
   } catch (error) {
     const message = error instanceof Error ? error.message : "Error desconocido al iniciar sesión.";
-    return NextResponse.redirect(new URL(`/login?error=${encodeURIComponent(message)}`, request.url));
+    return NextResponse.redirect(absoluteAppUrl(`/login?error=${encodeURIComponent(message)}`));
   }
 }

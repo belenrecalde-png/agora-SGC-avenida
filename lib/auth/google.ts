@@ -19,10 +19,23 @@ export function isGoogleConfigured(): boolean {
   return Boolean(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET && process.env.APP_URL);
 }
 
-function getRedirectUri(): string {
+/**
+ * Arma una URL absoluta contra `APP_URL` — nunca contra `request.url`. Detrás
+ * del proxy de un host real (confirmado con Railway), lo que el proceso de
+ * Next ve como "la URL del request" es la dirección interna del contenedor
+ * (ej. `http://localhost:8080/...`), no el dominio público — así que
+ * cualquier `new URL(path, request.url)` para armar un redirect termina
+ * mandando al navegador a esa dirección interna, que no existe fuera del
+ * contenedor. `APP_URL` es la única fuente confiable del origen público.
+ */
+export function absoluteAppUrl(path: string): URL {
   const appUrl = process.env.APP_URL;
   if (!appUrl) throw new Error("Falta APP_URL en las variables de entorno.");
-  return `${appUrl.replace(/\/$/, "")}/api/auth/callback`;
+  return new URL(path, appUrl.replace(/\/$/, "") + "/");
+}
+
+function getRedirectUri(): string {
+  return absoluteAppUrl("/api/auth/callback").toString();
 }
 
 export function getGoogleAuthUrl(state: string): string {

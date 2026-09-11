@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { NextResponse, type NextRequest } from "next/server";
 import { cookies } from "next/headers";
-import { getGoogleAuthUrl, isGoogleConfigured } from "@/lib/auth/google";
+import { absoluteAppUrl, getGoogleAuthUrl, isGoogleConfigured } from "@/lib/auth/google";
 
 const STATE_COOKIE = "agora_oauth_state";
 
@@ -13,7 +13,7 @@ const STATE_COOKIE = "agora_oauth_state";
  */
 export async function GET(request: NextRequest) {
   if (!isGoogleConfigured()) {
-    return NextResponse.redirect(new URL("/login?error=config", request.url));
+    return NextResponse.redirect(absoluteAppUrl("/login?error=config"));
   }
 
   // Solo se acepta un path relativo (nunca "//host" ni una URL absoluta) —
