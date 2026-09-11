@@ -505,10 +505,20 @@ function migrate(db: DatabaseSync) {
   ensureRiskSheetColumns(db);
 }
 
+/**
+ * `INSERT OR IGNORE`, no un `INSERT` liso — mismo motivo que `ensureColumns`
+ * más arriba: en un build de producción real (Railway), varios workers en
+ * paralelo pueden leer "count === 0" al mismo tiempo, antes de que ninguno
+ * haya insertado nada todavía, y todos intentan sembrar las mismas filas —
+ * el primero gana, el resto choca con `UNIQUE constraint failed` sin
+ * `OR IGNORE`. El chequeo de `count === 0` se mantiene como atajo barato
+ * para el caso común (base ya sembrada, ni siquiera prepara el INSERT), no
+ * como la única protección contra la carrera.
+ */
 function seed(db: DatabaseSync) {
   const areaCount = db.prepare("SELECT COUNT(*) as count FROM areas").get() as { count: number } | undefined;
   if (!areaCount || areaCount.count === 0) {
-    const insertArea = db.prepare("INSERT INTO areas (id, name, active, sort_order) VALUES (?, ?, 1, ?)");
+    const insertArea = db.prepare("INSERT OR IGNORE INTO areas (id, name, active, sort_order) VALUES (?, ?, 1, ?)");
     for (const area of SEED_AREAS) insertArea.run(area.id, area.name, area.sort_order);
   }
 
@@ -517,7 +527,7 @@ function seed(db: DatabaseSync) {
     | undefined;
   if (!typeCount || typeCount.count === 0) {
     const insertType = db.prepare(
-      "INSERT INTO record_types (id, code, name, description, color, active, sort_order) VALUES (?, ?, ?, ?, ?, 1, ?)",
+      "INSERT OR IGNORE INTO record_types (id, code, name, description, color, active, sort_order) VALUES (?, ?, ?, ?, ?, 1, ?)",
     );
     for (const type of SEED_TYPES) {
       insertType.run(type.id, type.code, type.name, type.description, type.color, type.sort_order);
