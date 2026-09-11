@@ -32,9 +32,9 @@ export const ISO_MAP: IsoBlock[] = [
     whatItMeans: "Entender qué pasa adentro y afuera de la organización, y quiénes son las partes interesadas relevantes.",
     howWeDoItAtAvenida:
       "Analizamos el entorno regulatorio de medios de pago, la relación con bancos y sellers, y factores internos como la estructura de equipos.",
-    supportingDocuments: "Análisis de contexto y matriz de partes interesadas (se completan en fases posteriores).",
+    supportingDocuments: "Análisis de contexto y matriz de partes interesadas — los mantiene Calidad puertas adentro.",
     whoIsInvolved: "Dirección, con aportes de Calidad y de los responsables de cada proceso.",
-    whatICanDoFromThePortal: "Consultar Planificación → Contexto y Partes interesadas.",
+    whatICanDoFromThePortal: "Consultar Planificación → Contexto y partes interesadas.",
   },
   {
     id: "liderazgo",
@@ -42,9 +42,10 @@ export const ISO_MAP: IsoBlock[] = [
     icon: Crown,
     whatItMeans: "El compromiso visible de la Dirección con la calidad, y que los roles y responsabilidades estén claros.",
     howWeDoItAtAvenida: "La Dirección define la Política de Calidad y revisa periódicamente el desempeño del SGC completo.",
-    supportingDocuments: "Política de Calidad, organigrama y definición de roles (Documentación, Fase 12).",
+    supportingDocuments: "Política de Calidad, organigrama y definición de roles.",
     whoIsInvolved: "Dirección y responsables de área.",
-    whatICanDoFromThePortal: "Leer la Política de Calidad y entender qué rol y permisos tenés dentro del SGC.",
+    whatICanDoFromThePortal:
+      "Leer la Política de Calidad en Centro de Conocimiento → Conceptos, y ver tu rol real desde el menú de tu cuenta.",
   },
   {
     id: "planificacion",
@@ -64,7 +65,8 @@ export const ISO_MAP: IsoBlock[] = [
     howWeDoItAtAvenida: "Mantenemos instructivos actualizados, capacitamos en herramientas como Plane y documentamos procedimientos clave.",
     supportingDocuments: "Instructivos, procedimientos y registros de capacitación.",
     whoIsInvolved: "Todas las áreas, con Calidad como responsable de mantener la documentación al día.",
-    whatICanDoFromThePortal: "Consultar instructivos y documentos en Documentación e Instructivos.",
+    whatICanDoFromThePortal:
+      "Consultar el Centro de Conocimiento (Conceptos, Calidad en 2 minutos, Comparador, FAQ) — el control documental formal de instructivos y procedimientos lo lleva Calidad puertas adentro.",
   },
   {
     id: "operacion",
@@ -75,7 +77,7 @@ export const ISO_MAP: IsoBlock[] = [
       "Ejecutamos procesos como Implementación e Integración con Clientes, Operación de la Plataforma SaaS y Gestión de Proveedores y Terceros con controles definidos.",
     supportingDocuments: "Fichas de proceso y procedimientos operativos.",
     whoIsInvolved: "Equipos operativos de cada proceso (Producto, IT, Operaciones, Comercial, Delivery).",
-    whatICanDoFromThePortal: "Ver el Mapa de procesos y la ficha de tu proceso.",
+    whatICanDoFromThePortal: "Ver Procesos → mapa general y la ficha completa de cada proceso.",
   },
   {
     id: "evaluacion-del-desempeno",
@@ -85,7 +87,8 @@ export const ISO_MAP: IsoBlock[] = [
     howWeDoItAtAvenida: "Hacemos seguimiento de indicadores por proceso, auditorías internas periódicas y encuestas de satisfacción a bancos y sellers.",
     supportingDocuments: "Indicadores, informes de auditoría y resultados de satisfacción.",
     whoIsInvolved: "Calidad, con datos aportados por cada área.",
-    whatICanDoFromThePortal: "Consultar Evaluación → Indicadores, Auditorías y Satisfacción.",
+    whatICanDoFromThePortal:
+      "Consultar Evaluación → Indicadores, Satisfacción y Seguimiento (vencimientos, reincidencias y cumplimiento por área) — el programa de auditorías lo gestiona Calidad puertas adentro.",
   },
   {
     id: "mejora",

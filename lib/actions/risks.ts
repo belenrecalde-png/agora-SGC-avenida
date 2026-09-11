@@ -20,6 +20,8 @@ import {
   updateRiskTreatment,
   type RiskKind,
 } from "@/lib/db/queries";
+import { isReadOnlyRole, requireEditAccess, requireGestionAccess } from "@/lib/auth/access";
+import { pushRiskToSheetSafe } from "@/lib/google-sheets/risk-sync";
 
 function requireRisk(code: string) {
   const risk = getRiskByCode(code);
@@ -35,14 +37,24 @@ function parseIntOrNull(value: FormDataEntryValue | null): number | null {
 }
 
 export async function crearRiesgoAction(formData: FormData): Promise<void> {
+  const user = await requireGestionAccess();
+  if (isReadOnlyRole(user.role)) throw new Error("Tu rol es de solo lectura — no podés cargar riesgos u oportunidades.");
+
   const kind = (String(formData.get("kind") ?? "riesgo").trim() || "riesgo") as RiskKind;
   const description = String(formData.get("description") ?? "").trim();
   if (!description) throw new Error("Describí el riesgo u oportunidad antes de guardarlo.");
 
+  // Un Responsable de Área solo puede cargar riesgos de su propia área,
+  // aunque el formulario mande otra cosa — se ignora lo enviado y se fuerza
+  // la propia área (mismo criterio que el resto de este archivo: nunca
+  // confiar en lo que manda el cliente para decidir permisos).
+  const areaId =
+    user.role === "responsable_area" ? user.area_id : String(formData.get("areaId") ?? "").trim() || null;
+
   const risk = createRisk({
     kind,
     source: String(formData.get("source") ?? "").trim() || null,
-    areaId: String(formData.get("areaId") ?? "").trim() || null,
+    areaId,
     processName: String(formData.get("processName") ?? "").trim() || null,
     activity: String(formData.get("activity") ?? "").trim() || null,
     description,
@@ -54,6 +66,7 @@ export async function crearRiesgoAction(formData: FormData): Promise<void> {
     responsible: String(formData.get("responsible") ?? "").trim() || null,
     dueDate: String(formData.get("dueDate") ?? "").trim() || null,
   });
+  await pushRiskToSheetSafe(risk);
 
   redirect(`/planificacion/riesgos-y-oportunidades/${risk.code}`);
 }
@@ -61,11 +74,12 @@ export async function crearRiesgoAction(formData: FormData): Promise<void> {
 export async function guardarTratamientoAction(formData: FormData): Promise<void> {
   const code = String(formData.get("code") ?? "").trim();
   const risk = requireRisk(code);
+  await requireEditAccess(risk);
 
   const description = String(formData.get("description") ?? "").trim();
   if (!description) throw new Error("La descripción no puede quedar vacía.");
 
-  updateRiskTreatment(risk.id, {
+  const updated = updateRiskTreatment(risk.id, {
     source: String(formData.get("source") ?? "").trim() || null,
     areaId: String(formData.get("areaId") ?? "").trim() || null,
     processName: String(formData.get("processName") ?? "").trim() || null,
@@ -79,6 +93,7 @@ export async function guardarTratamientoAction(formData: FormData): Promise<void
     responsible: String(formData.get("responsible") ?? "").trim() || null,
     dueDate: String(formData.get("dueDate") ?? "").trim() || null,
   });
+  await pushRiskToSheetSafe(updated);
 
   revalidatePath(`/planificacion/riesgos-y-oportunidades/${code}`);
 }
@@ -86,6 +101,7 @@ export async function guardarTratamientoAction(formData: FormData): Promise<void
 export async function agregarControlAction(formData: FormData): Promise<void> {
   const code = String(formData.get("code") ?? "").trim();
   const risk = requireRisk(code);
+  await requireEditAccess(risk);
 
   const description = String(formData.get("description") ?? "").trim();
   if (!description) throw new Error("Describí el control antes de guardarlo.");
@@ -102,12 +118,14 @@ export async function agregarControlAction(formData: FormData): Promise<void> {
 export async function guardarValoracionResidualAction(formData: FormData): Promise<void> {
   const code = String(formData.get("code") ?? "").trim();
   const risk = requireRisk(code);
+  await requireEditAccess(risk);
 
-  updateRiskResidual(risk.id, {
+  const updated = updateRiskResidual(risk.id, {
     probabilityResidual: parseIntOrNull(formData.get("probabilityResidual")),
     impactResidual: parseIntOrNull(formData.get("impactResidual")),
     verification: String(formData.get("verification") ?? "").trim() || null,
   });
+  await pushRiskToSheetSafe(updated);
 
   revalidatePath(`/planificacion/riesgos-y-oportunidades/${code}`);
 }
@@ -115,6 +133,7 @@ export async function guardarValoracionResidualAction(formData: FormData): Promi
 export async function cambiarEstadoRiesgoAction(formData: FormData): Promise<void> {
   const code = String(formData.get("code") ?? "").trim();
   const risk = requireRisk(code);
+  await requireEditAccess(risk);
   const newStatus = String(formData.get("status") ?? "").trim();
   if (!newStatus) throw new Error("Elegí un estado.");
 
@@ -131,6 +150,7 @@ export async function cambiarEstadoRiesgoAction(formData: FormData): Promise<voi
 export async function vincularRegistroRiesgoAction(formData: FormData): Promise<void> {
   const code = String(formData.get("code") ?? "").trim();
   const risk = requireRisk(code);
+  await requireEditAccess(risk);
   const targetCode = String(formData.get("targetCode") ?? "").trim();
   const label = String(formData.get("label") ?? "").trim() || null;
   if (!targetCode) throw new Error("Ingresá el código del registro a vincular.");

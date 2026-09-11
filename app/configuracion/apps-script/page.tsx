@@ -11,7 +11,6 @@ export default function Page() {
       icon={ScrollText}
       title="Apps Script"
       description="Configuración de la integración con Google Apps Script y Google Sheets para automatizaciones y envío de mails."
-      phase="Fase 5"
       sectionLabel="Configuración"
     />
   );

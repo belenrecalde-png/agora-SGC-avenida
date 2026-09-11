@@ -1,18 +1,23 @@
 import { Wrench } from "lucide-react";
-import { PlaceholderPage } from "@/components/layout/placeholder-page";
+import { TipoRegistroView } from "@/components/gestion-calidad/tipo-registro-view";
+import { loadTipoRegistroData } from "@/lib/gestion-tipo";
+
+export const dynamic = "force-dynamic";
 
 export const metadata = {
   title: `Acciones Correctivas | Ágora`,
 };
 
-export default function Page() {
+export default async function Page() {
+  const { records, types, areas } = await loadTipoRegistroData("AC");
   return (
-    <PlaceholderPage
-      icon={Wrench}
+    <TipoRegistroView
       title="Acciones Correctivas"
       description="Acciones para eliminar la causa raíz de una No Conformidad y evitar su recurrencia, con seguimiento de estado hasta el cierre verificado."
-      phase="Fase 7"
-      sectionLabel="Gestión de Calidad"
+      icon={Wrench}
+      records={records}
+      types={types}
+      areas={areas}
     />
   );
 }

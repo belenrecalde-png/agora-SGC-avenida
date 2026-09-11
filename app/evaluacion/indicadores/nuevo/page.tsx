@@ -1,9 +1,10 @@
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { Card } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+import { SubmitButton } from "@/components/ui/submit-button";
 import { listAreas } from "@/lib/db/queries";
 import { crearIndicadorAction } from "@/lib/actions/indicators";
+import { requireCreateAccess } from "@/lib/auth/access";
 
 export const dynamic = "force-dynamic";
 
@@ -15,7 +16,8 @@ const FIELD_CLASS =
   "w-full rounded-xl border border-border bg-white px-3 py-2 text-sm text-avenida-black placeholder:text-muted focus:border-avenida-violet focus:outline-none focus:ring-2 focus:ring-avenida-violet/20";
 const LABEL_CLASS = "text-sm font-medium text-avenida-black";
 
-export default function NuevoIndicadorPage() {
+export default async function NuevoIndicadorPage() {
+  await requireCreateAccess("/evaluacion/indicadores");
   const areas = listAreas({ onlyActive: true });
 
   return (
@@ -133,9 +135,9 @@ export default function NuevoIndicadorPage() {
             <input id="processName" name="processName" type="text" className={FIELD_CLASS} />
           </div>
 
-          <Button type="submit" className="w-fit">
+          <SubmitButton className="w-fit" pendingText="Guardando…">
             Guardar
-          </Button>
+          </SubmitButton>
         </form>
       </Card>
     </div>

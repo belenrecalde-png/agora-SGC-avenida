@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { ArrowLeft, Clock } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -13,6 +13,8 @@ import {
   listAreas,
   listIndicatorResults,
 } from "@/lib/db/queries";
+import { canEditAreaScoped, canViewAreaScoped } from "@/lib/auth/access";
+import { requireUser } from "@/lib/auth/dal";
 
 export const dynamic = "force-dynamic";
 
@@ -42,6 +44,10 @@ export default async function IndicadorDetallePage({
   const { tab } = await searchParams;
   const indicator = getIndicatorByCode(code);
   if (!indicator) notFound();
+
+  const user = await requireUser();
+  if (!canViewAreaScoped(indicator, user)) redirect("/mi-sgc");
+  const canEdit = canEditAreaScoped(indicator, user);
 
   const areas = listAreas();
   const area = indicator.area_id ? areas.find((a) => a.id === indicator.area_id) : undefined;
@@ -80,8 +86,8 @@ export default async function IndicadorDetallePage({
 
       <IndicatorTabs code={indicator.code} active={activeTab} tabs={tabs} />
 
-      {activeTab === "resumen" && <ResumenTab indicator={indicator} areas={areas} />}
-      {activeTab === "resultados" && <ResultadosTab indicator={indicator} results={results} />}
+      {activeTab === "resumen" && <ResumenTab indicator={indicator} areas={areas} canEdit={canEdit} />}
+      {activeTab === "resultados" && <ResultadosTab indicator={indicator} results={results} canEdit={canEdit} />}
 
       {activeTab === "historial" && (
         <Card className="flex flex-col divide-y divide-border p-0">

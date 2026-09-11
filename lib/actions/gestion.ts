@@ -16,6 +16,7 @@ import { revalidatePath } from "next/cache";
 import {
   addEvidence,
   createCorrectiveActionForRecord,
+  createEscalatedRecord,
   getRecordByCode,
   linkExistingRecordRelationship,
   updateRecordAnalysis,
@@ -23,6 +24,7 @@ import {
   updateRecordEffectiveness,
   updateRecordStatus,
 } from "@/lib/db/queries";
+import { requireEditAccess } from "@/lib/auth/access";
 
 function requireRecord(code: string) {
   const record = getRecordByCode(code);
@@ -33,6 +35,7 @@ function requireRecord(code: string) {
 export async function guardarAnalisisAction(formData: FormData): Promise<void> {
   const code = String(formData.get("code") ?? "").trim();
   const record = requireRecord(code);
+  await requireEditAccess(record);
 
   updateRecordAnalysis(record.id, {
     rootCauseMethod: String(formData.get("rootCauseMethod") ?? "").trim() || null,
@@ -49,6 +52,7 @@ export async function guardarAnalisisAction(formData: FormData): Promise<void> {
 export async function crearAccionCorrectivaAction(formData: FormData): Promise<void> {
   const code = String(formData.get("code") ?? "").trim();
   const record = requireRecord(code);
+  await requireEditAccess(record);
 
   const title = String(formData.get("title") ?? "").trim();
   const description = String(formData.get("description") ?? "").trim();
@@ -66,8 +70,39 @@ export async function crearAccionCorrectivaAction(formData: FormData): Promise<v
   redirect(`/gestion-calidad/registro/${ac.code}`);
 }
 
+/**
+ * Igual que `crearAccionCorrectivaAction`, pero genérica para el resto de
+ * las escaladas (Sugerencia → Oportunidad de Mejora, Queja/Reclamo → No
+ * Conformidad) — el tipo a crear viaja en `targetTypeCode`, un campo oculto
+ * que pone cada pestaña de `EscalarTab` según corresponda.
+ */
+export async function crearRegistroEscaladoAction(formData: FormData): Promise<void> {
+  const code = String(formData.get("code") ?? "").trim();
+  const record = requireRecord(code);
+  await requireEditAccess(record);
+
+  const targetTypeCode = String(formData.get("targetTypeCode") ?? "").trim();
+  const title = String(formData.get("title") ?? "").trim();
+  const description = String(formData.get("description") ?? "").trim();
+  const responsible = String(formData.get("responsible") ?? "").trim();
+  const dueDate = String(formData.get("dueDate") ?? "").trim() || null;
+  const priority = (String(formData.get("priority") ?? "Media").trim() || "Media") as "Baja" | "Media" | "Alta";
+
+  if (!targetTypeCode) throw new Error("Falta el tipo de registro a crear.");
+  if (!title || !description || !responsible) {
+    throw new Error("Faltan campos obligatorios (título, acción y responsable).");
+  }
+
+  const created = createEscalatedRecord(record, targetTypeCode, { title, description, responsible, dueDate, priority });
+
+  revalidatePath(`/gestion-calidad/registro/${code}`);
+  redirect(`/gestion-calidad/registro/${created.code}`);
+}
+
 export async function vincularAccionExistenteAction(formData: FormData): Promise<void> {
   const code = String(formData.get("code") ?? "").trim();
+  const record = requireRecord(code);
+  await requireEditAccess(record);
   const targetCode = String(formData.get("targetCode") ?? "").trim();
   if (!targetCode) throw new Error("Ingresá el código del registro a vincular.");
 
@@ -77,6 +112,8 @@ export async function vincularAccionExistenteAction(formData: FormData): Promise
 
 export async function vincularRegistroAction(formData: FormData): Promise<void> {
   const code = String(formData.get("code") ?? "").trim();
+  const record = requireRecord(code);
+  await requireEditAccess(record);
   const targetCode = String(formData.get("targetCode") ?? "").trim();
   const label = String(formData.get("label") ?? "").trim() || null;
   if (!targetCode) throw new Error("Ingresá el código del registro a vincular.");
@@ -88,6 +125,7 @@ export async function vincularRegistroAction(formData: FormData): Promise<void> 
 export async function guardarVerificacionAction(formData: FormData): Promise<void> {
   const code = String(formData.get("code") ?? "").trim();
   const record = requireRecord(code);
+  await requireEditAccess(record);
 
   const effectiveRaw = String(formData.get("effective") ?? "").trim();
   const effective = effectiveRaw === "si" ? true : effectiveRaw === "no" ? false : null;
@@ -106,6 +144,7 @@ export async function guardarVerificacionAction(formData: FormData): Promise<voi
 export async function cambiarEstadoAction(formData: FormData): Promise<void> {
   const code = String(formData.get("code") ?? "").trim();
   const record = requireRecord(code);
+  await requireEditAccess(record);
   const newStatus = String(formData.get("status") ?? "").trim();
   const tab = String(formData.get("tab") ?? "verificacion").trim() || "verificacion";
   if (!newStatus) throw new Error("Elegí un estado.");
@@ -130,6 +169,7 @@ export async function cambiarEstadoAction(formData: FormData): Promise<void> {
 export async function agregarEvidenciaAction(formData: FormData): Promise<void> {
   const code = String(formData.get("code") ?? "").trim();
   const record = requireRecord(code);
+  await requireEditAccess(record);
 
   const description = String(formData.get("description") ?? "").trim();
   const link = String(formData.get("link") ?? "").trim() || null;
@@ -143,6 +183,7 @@ export async function agregarEvidenciaAction(formData: FormData): Promise<void> 
 export async function actualizarVencimientoAction(formData: FormData): Promise<void> {
   const code = String(formData.get("code") ?? "").trim();
   const record = requireRecord(code);
+  await requireEditAccess(record);
   const dueDate = String(formData.get("dueDate") ?? "").trim() || null;
 
   updateRecordDueDate(record.id, dueDate);

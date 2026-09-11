@@ -20,10 +20,12 @@ export function RelacionesTab({
   record,
   relationships,
   riskLinks = [],
+  canEdit = true,
 }: {
   record: SgcRecord;
   relationships: RecordRelationship[];
   riskLinks?: RecordRiskLink[];
+  canEdit?: boolean;
 }) {
   return (
     <div className="flex flex-col gap-6">
@@ -85,23 +87,25 @@ export function RelacionesTab({
         </Card>
       )}
 
-      <Card className="flex flex-col gap-3 p-5">
-        <p className="text-sm font-semibold text-avenida-black">Vincular a otro registro</p>
-        <form action={vincularRegistroAction} className="flex flex-wrap items-end gap-3">
-          <input type="hidden" name="code" value={record.code} />
-          <label className="flex flex-1 min-w-[180px] flex-col gap-1.5">
-            <span className="text-xs font-semibold uppercase tracking-wide text-muted">Código del registro</span>
-            <input name="targetCode" required placeholder="Ej.: NC-2026-014" className={inputClass} />
-          </label>
-          <label className="flex flex-1 min-w-[180px] flex-col gap-1.5">
-            <span className="text-xs font-semibold uppercase tracking-wide text-muted">Motivo del vínculo (opcional)</span>
-            <input name="label" placeholder="Ej.: Originado en esta queja" className={inputClass} />
-          </label>
-          <Button type="submit" variant="secondary" size="sm">
-            Vincular
-          </Button>
-        </form>
-      </Card>
+      {canEdit && (
+        <Card className="flex flex-col gap-3 p-5">
+          <p className="text-sm font-semibold text-avenida-black">Vincular a otro registro</p>
+          <form action={vincularRegistroAction} className="flex flex-wrap items-end gap-3">
+            <input type="hidden" name="code" value={record.code} />
+            <label className="flex flex-1 min-w-[180px] flex-col gap-1.5">
+              <span className="text-xs font-semibold uppercase tracking-wide text-muted">Código del registro</span>
+              <input name="targetCode" required placeholder="Ej.: NC-2026-014" className={inputClass} />
+            </label>
+            <label className="flex flex-1 min-w-[180px] flex-col gap-1.5">
+              <span className="text-xs font-semibold uppercase tracking-wide text-muted">Motivo del vínculo (opcional)</span>
+              <input name="label" placeholder="Ej.: Originado en esta queja" className={inputClass} />
+            </label>
+            <Button type="submit" variant="secondary" size="sm">
+              Vincular
+            </Button>
+          </form>
+        </Card>
+      )}
     </div>
   );
 }

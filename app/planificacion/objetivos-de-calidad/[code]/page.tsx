@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { ArrowLeft, Clock } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Badge, type BadgeTone } from "@/components/ui/badge";
@@ -13,6 +13,8 @@ import {
   listIndicators,
   listObjectiveResults,
 } from "@/lib/db/queries";
+import { canEditAreaScoped, canViewAreaScoped } from "@/lib/auth/access";
+import { requireUser } from "@/lib/auth/dal";
 
 export const dynamic = "force-dynamic";
 
@@ -50,6 +52,10 @@ export default async function ObjetivoDetallePage({
   const objective = getObjectiveByCode(code);
   if (!objective) notFound();
 
+  const user = await requireUser();
+  if (!canViewAreaScoped(objective, user)) redirect("/mi-sgc");
+  const canEdit = canEditAreaScoped(objective, user);
+
   const areas = listAreas();
   const indicators = listIndicators();
   const area = objective.area_id ? areas.find((a) => a.id === objective.area_id) : undefined;
@@ -79,6 +85,9 @@ export default async function ObjetivoDetallePage({
         <div className="flex flex-col gap-2">
           <div className="flex flex-wrap items-center gap-2">
             <Badge tone={statusTone(objective.status)}>{objective.status}</Badge>
+            {objective.sheet_row !== null && (
+              <Badge tone="blue">Sincronizado con Sheets (fila {objective.sheet_row})</Badge>
+            )}
           </div>
           <h1 className="text-2xl font-semibold text-avenida-black">{objective.title}</h1>
           <p className="text-sm text-muted">
@@ -89,8 +98,10 @@ export default async function ObjetivoDetallePage({
 
       <ObjectiveTabs code={objective.code} active={activeTab} tabs={tabs} />
 
-      {activeTab === "resumen" && <ResumenTab objective={objective} areas={areas} indicators={indicators} />}
-      {activeTab === "resultados" && <ResultadosTab objective={objective} results={results} />}
+      {activeTab === "resumen" && (
+        <ResumenTab objective={objective} areas={areas} indicators={indicators} canEdit={canEdit} />
+      )}
+      {activeTab === "resultados" && <ResultadosTab objective={objective} results={results} canEdit={canEdit} />}
 
       {activeTab === "historial" && (
         <Card className="flex flex-col divide-y divide-border p-0">

@@ -3,6 +3,7 @@ import { Card } from "@/components/ui/card";
 import { LinkButton } from "@/components/ui/button";
 import { IndicadoresTable } from "@/components/indicadores/indicadores-table";
 import { getIndicatorToleranceStatus, listAreas, listIndicators } from "@/lib/db/queries";
+import { filterByAreaAccess, requireGestionAccess } from "@/lib/auth/access";
 
 export const dynamic = "force-dynamic";
 
@@ -10,8 +11,9 @@ export const metadata = {
   title: "Indicadores | Ágora",
 };
 
-export default function IndicadoresPage() {
-  const indicators = listIndicators();
+export default async function IndicadoresPage() {
+  const user = await requireGestionAccess();
+  const indicators = filterByAreaAccess(listIndicators(), user);
   const areas = listAreas();
 
   const statuses = indicators.map(getIndicatorToleranceStatus);

@@ -20,6 +20,7 @@ export function ReportCategoryPicker() {
         {REPORT_CATEGORIES.map((category) => {
           const Icon = category.icon;
           const isSelected = category.id === selectedId;
+          const validCodes = category.suggestedTypes.filter((type) => VALID_TYPE_CODES.has(type));
           return (
             <button
               key={category.id}
@@ -39,7 +40,12 @@ export function ReportCategoryPicker() {
                   <Icon className="h-5 w-5" />
                 </span>
                 <div>
-                  <p className="text-sm font-semibold text-avenida-black">{category.title}</p>
+                  <p className="text-sm font-semibold text-avenida-black">
+                    {category.title}
+                    {validCodes.length > 0 && (
+                      <span className="font-normal text-muted"> ({validCodes.join(", ")})</span>
+                    )}
+                  </p>
                   <p className="mt-1 text-sm text-muted">{category.description}</p>
                 </div>
               </Card>
@@ -87,8 +93,8 @@ export function ReportCategoryPicker() {
 
           <div className="flex flex-col gap-2 rounded-xl border border-dashed border-avenida-violet/30 bg-avenida-violet-light/40 p-4 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-sm text-avenida-black">
-              Completá el formulario y te damos un código de seguimiento al instante. La creación
-              del ticket en Plane se conecta en la <strong>Fase 4</strong>.
+              Completá el formulario y te damos un código de seguimiento al instante. Si tu área
+              tiene un proyecto de Plane conectado, el ticket se crea ahí automáticamente.
             </p>
             <LinkButton
               href={`/reportar/nuevo?categoria=${selected.id}${defaultType ? `&tipo=${defaultType}` : ""}`}

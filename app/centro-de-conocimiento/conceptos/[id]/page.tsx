@@ -63,10 +63,6 @@ export default async function ConceptoDetailPage({ params }: { params: Promise<{
         </div>
       </div>
 
-      <Badge tone="amber" className="w-fit">
-        Borrador — contenido a revisar por el equipo de Calidad
-      </Badge>
-
       <Card className="flex flex-col divide-y divide-border p-0">
         {FIELDS.map((field) => (
           <div key={field.key} className="flex flex-col gap-1.5 p-5">

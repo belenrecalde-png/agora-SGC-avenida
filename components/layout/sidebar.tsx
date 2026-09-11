@@ -48,16 +48,45 @@ function NavLink({
   );
 }
 
+// Pantallas de gestión con datos reales por área — un Colaborador no las
+// navega (ve solo "Mi SGC" y puede reportar), ver `lib/auth/access.ts`
+// (`canBrowseGestion`). Las páginas "glosario" del mismo menú (No
+// Conformidades, Contexto, etc.) siguen visibles — son solo informativas.
+const RESTRICTED_FOR_COLABORADOR = new Set([
+  "registro-sgc",
+  "tickets-plane",
+  "riesgos-y-oportunidades",
+  "objetivos-de-calidad",
+  "indicadores",
+]);
+
+function visibleItems(items: (typeof NAV_SECTIONS)[number]["items"], role?: string) {
+  if (role !== "colaborador") return items;
+  return items.filter((item) => !RESTRICTED_FOR_COLABORADOR.has(item.id));
+}
+
+// Configuración es solo para Administrador SGC y Calidad (ver
+// `app/configuracion/layout.tsx`, que aplica el mismo corte del lado del
+// servidor) — para el resto de los roles ni siquiera tiene sentido mostrar
+// el menú, ya que cualquier pantalla de ahí adentro los redirige a "/".
+function visibleSections(sections: typeof NAV_SECTIONS, role?: string) {
+  if (role === "admin" || role === "calidad") return sections;
+  return sections.filter((section) => section.id !== "configuracion");
+}
+
 function SectionGroup({
   section,
   pathname,
   onNavigate,
+  role,
 }: {
   section: (typeof NAV_SECTIONS)[number];
   pathname: string;
   onNavigate?: () => void;
+  role?: string;
 }) {
-  const containsActive = section.items.some((item) => isActive(pathname, item.href));
+  const items = visibleItems(section.items, role);
+  const containsActive = items.some((item) => isActive(pathname, item.href));
   const [open, setOpen] = useState(containsActive);
   const Icon = section.icon;
 
@@ -81,7 +110,7 @@ function SectionGroup({
       </button>
       {open && (
         <div className="mt-0.5 ml-3.5 flex flex-col gap-0.5 border-l border-sidebar-border pl-3">
-          {section.items.map((item) => (
+          {items.map((item) => (
             <NavLink
               key={item.id}
               href={item.href}
@@ -100,9 +129,11 @@ function SectionGroup({
 export function SidebarContent({
   onNavigate,
   onClose,
+  role,
 }: {
   onNavigate?: () => void;
   onClose?: () => void;
+  role?: string;
 }) {
   const pathname = usePathname();
 
@@ -146,12 +177,13 @@ export function SidebarContent({
         </div>
 
         <div className="flex flex-col gap-1 border-t border-sidebar-border pt-4">
-          {NAV_SECTIONS.map((section) => (
+          {visibleSections(NAV_SECTIONS, role).map((section) => (
             <SectionGroup
               key={section.id}
               section={section}
               pathname={pathname}
               onNavigate={onNavigate}
+              role={role}
             />
           ))}
         </div>
@@ -161,9 +193,9 @@ export function SidebarContent({
         <Image
           src="/brand/avenida-logo.png"
           alt="Avenida+"
-          width={100}
-          height={26}
-          className="h-4 w-auto"
+          width={140}
+          height={40}
+          className="h-4 w-auto self-start"
         />
         <p className="text-xs leading-snug text-muted">
           Personas que hacen mejores procesos, hoy y siempre.
@@ -173,10 +205,10 @@ export function SidebarContent({
   );
 }
 
-export function Sidebar() {
+export function Sidebar({ role }: { role?: string } = {}) {
   return (
     <aside className="sticky top-0 hidden h-screen lg:block">
-      <SidebarContent />
+      <SidebarContent role={role} />
     </aside>
   );
 }
@@ -184,16 +216,18 @@ export function Sidebar() {
 export function MobileSidebar({
   open,
   onClose,
+  role,
 }: {
   open: boolean;
   onClose: () => void;
+  role?: string;
 }) {
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-50 flex lg:hidden">
       <div className="fixed inset-0 bg-black/40" onClick={onClose} />
       <div className="relative flex">
-        <SidebarContent onNavigate={onClose} onClose={onClose} />
+        <SidebarContent onNavigate={onClose} onClose={onClose} role={role} />
       </div>
     </div>
   );

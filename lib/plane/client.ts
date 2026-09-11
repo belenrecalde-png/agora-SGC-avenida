@@ -21,16 +21,12 @@
  * Cloud / `api.plane.so`) — la URL base es siempre la del servidor propio del
  * usuario.
  *
- * ⚠️ Endpoint no documentado en la referencia original: `listWorkItems()`
- * (GET `/projects/{project_id}/work-items/`, sin id) es una suposición —
- * la implementación de Apps Script solo necesitaba leer work items por id ya
- * conocido, nunca listar todos los de un proyecto. Se asume que la API REST
- * de Plane expone la colección completa en la misma ruta base (patrón REST
- * estándar: colección sin id = todos, colección + id = uno), y que la
- * respuesta viene paginada con la forma `{ results: [...], next_cursor,
- * ... }` como el resto de la API de Plane. **Hay que confirmar esto contra
- * la instancia real** (ver "Probar conexión" en Configuración → Plane) antes
- * de confiar en la sincronización de tickets preexistentes.
+ * ✅ Confirmado contra una instancia real (2026-09-08): `listWorkItems()`
+ * (GET `/projects/{project_id}/work-items/`, sin id) devuelve exactamente la
+ * forma asumida — `{ results: [...], next_cursor, next_page_results, ... }`.
+ * `listLabels()` (GET `/projects/{project_id}/labels/`) también confirmado,
+ * misma forma `{ results: [...] }`. El campo de etiquetas en un work item es
+ * `labels` (array de UUIDs) — ver la nota en `PlaneWorkItem.labels` más abajo.
  */
 
 type PlaneConfig = {
@@ -47,6 +43,12 @@ export type PlaneState = {
   group: string; // "backlog" | "unstarted" | "started" | "completed" | "cancelled" (típico de Plane)
 };
 
+export type PlaneLabel = {
+  id: string;
+  name: string;
+  [key: string]: unknown;
+};
+
 export type PlaneWorkItem = {
   id: string;
   sequence_id?: number;
@@ -56,6 +58,12 @@ export type PlaneWorkItem = {
   state?: string | null; // UUID de PlaneState
   created_at?: string;
   updated_at?: string;
+  // Confirmado contra una instancia real (2026-09-08): el campo es `labels`
+  // (array de UUIDs de etiqueta). Se deja `label_ids` como alternativa en
+  // `workItemHasLabel()` por si otra versión de Plane lo expone distinto,
+  // pero el campo real observado es `labels`.
+  label_ids?: string[];
+  labels?: string[];
   [key: string]: unknown;
 };
 
@@ -252,6 +260,46 @@ export function clearStatesCache(projectId?: string): void {
   else statesCache.clear();
 }
 
+// Mismo criterio de caché en memoria de proceso que `statesCache` — evita
+// golpear `/labels/` una vez por cada work item al filtrar por etiqueta.
+const labelsCache = new Map<string, Map<string, PlaneLabel>>();
+
+/**
+ * ✅ Confirmado contra una instancia real (2026-09-08) — ver nota al inicio
+ * del archivo.
+ */
+export async function listLabels(projectId: string, options: { refresh?: boolean } = {}): Promise<Map<string, PlaneLabel>> {
+  if (!options.refresh && labelsCache.has(projectId)) return labelsCache.get(projectId)!;
+
+  const config = requireConfig();
+  const raw = await planeFetch<{ results?: PlaneLabel[] } | PlaneLabel[]>(config, `/projects/${projectId}/labels/`);
+  const list = Array.isArray(raw) ? raw : (raw.results ?? []);
+  const map = new Map<string, PlaneLabel>(list.map((label) => [label.id, label]));
+  labelsCache.set(projectId, map);
+  return map;
+}
+
+export function clearLabelsCache(projectId?: string): void {
+  if (projectId) labelsCache.delete(projectId);
+  else labelsCache.clear();
+}
+
+/** Busca una etiqueta por nombre (sin distinguir mayúsculas/acentos exactos) y devuelve su UUID. */
+export async function resolveLabelId(projectId: string, labelName: string): Promise<string | null> {
+  const labels = await listLabels(projectId);
+  const target = labelName.trim().toLowerCase();
+  for (const label of labels.values()) {
+    if (label.name?.trim().toLowerCase() === target) return label.id;
+  }
+  return null;
+}
+
+/** Ver la nota de `label_ids`/`labels` en `PlaneWorkItem` — prueba ambos nombres de campo. */
+export function workItemHasLabel(item: PlaneWorkItem, labelId: string): boolean {
+  const ids = item.label_ids ?? item.labels ?? [];
+  return Array.isArray(ids) && ids.includes(labelId);
+}
+
 export async function createWorkItem(projectId: string, input: CreateWorkItemInput): Promise<PlaneWorkItem> {
   const config = requireConfig();
   return planeFetch<PlaneWorkItem>(config, `/projects/${projectId}/work-items/`, {
@@ -270,9 +318,8 @@ export async function getWorkItem(projectId: string, workItemId: string): Promis
 }
 
 /**
- * ⚠️ Endpoint asumido, no verificado contra una instancia real (ver nota al
- * inicio del archivo). Si la instancia del usuario no lo expone en esta
- * ruta, esta función es el único lugar que habría que ajustar.
+ * ✅ Confirmado contra una instancia real (2026-09-08) — ver nota al inicio
+ * del archivo.
  */
 export async function listWorkItems(
   projectId: string,

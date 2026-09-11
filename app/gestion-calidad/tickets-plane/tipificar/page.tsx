@@ -1,8 +1,9 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { ArrowLeft, ExternalLink } from "lucide-react";
 import { Card } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { listAreas, listRecordTypes } from "@/lib/db/queries";
+import { SubmitButton } from "@/components/ui/submit-button";
+import { getPlaneProjectMappingByProjectId, listAreas, listRecordTypes } from "@/lib/db/queries";
 import {
   getWorkItem,
   getWorkItemUrl,
@@ -12,6 +13,7 @@ import {
   stripHtml,
 } from "@/lib/plane/client";
 import { tipificarTicketAction } from "@/lib/actions/plane-tickets";
+import { hasFullAreaAccess, requireTicketsPlaneAccess } from "@/lib/auth/access";
 
 export const dynamic = "force-dynamic";
 
@@ -28,6 +30,7 @@ export default async function TipificarTicketPage({
 }: {
   searchParams: Promise<{ projectId?: string; workItemId?: string }>;
 }) {
+  const user = await requireTicketsPlaneAccess();
   const { projectId, workItemId } = await searchParams;
 
   if (!projectId || !workItemId) {
@@ -77,6 +80,21 @@ export default async function TipificarTicketPage({
   const types = listRecordTypes({ onlyActive: true });
   const areas = listAreas({ onlyActive: true });
 
+  // Si el proyecto de este ticket tiene un tipo/área sugeridos (Configuración
+  // → Plane), se pre-cargan acá — sigue haciendo falta confirmar y guardar
+  // a mano, esto solo ahorra tener que elegirlos de nuevo cada vez.
+  const mapping = getPlaneProjectMappingByProjectId(projectId);
+
+  // Un Responsable de Área no puede tipificar tickets de un proyecto mapeado
+  // a otra área, aunque le llegue el link (ej. compartido por otra persona).
+  if (!hasFullAreaAccess(user.role) && mapping?.area_id !== user.area_id) {
+    redirect("/gestion-calidad/tickets-plane");
+  }
+  const suggestedType = mapping?.auto_type_code && types.some((t) => t.code === mapping.auto_type_code)
+    ? mapping.auto_type_code
+    : types[0]?.code;
+  const suggestedAreaId = mapping?.area_id && areas.some((a) => a.id === mapping.area_id) ? mapping.area_id : "";
+
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-6 pb-12">
       <Link
@@ -118,7 +136,7 @@ export default async function TipificarTicketPage({
             <label htmlFor="typeCode" className={LABEL_CLASS}>
               Clasificación SGC
             </label>
-            <select id="typeCode" name="typeCode" defaultValue={types[0]?.code} className={FIELD_CLASS} required>
+            <select id="typeCode" name="typeCode" defaultValue={suggestedType} className={FIELD_CLASS} required>
               {types.map((type) => (
                 <option key={type.id} value={type.code}>
                   {type.name} ({type.code})
@@ -162,7 +180,7 @@ export default async function TipificarTicketPage({
               <label htmlFor="areaId" className={LABEL_CLASS}>
                 Área relacionada
               </label>
-              <select id="areaId" name="areaId" defaultValue="" className={FIELD_CLASS}>
+              <select id="areaId" name="areaId" defaultValue={suggestedAreaId} className={FIELD_CLASS}>
                 <option value="">No estoy seguro</option>
                 {areas.map((area) => (
                   <option key={area.id} value={area.id}>
@@ -170,7 +188,11 @@ export default async function TipificarTicketPage({
                   </option>
                 ))}
               </select>
-              <p className="text-xs text-muted">Plane no trae este dato — se define acá, al tipificar.</p>
+              <p className="text-xs text-muted">
+                {suggestedAreaId
+                  ? "Pre-cargada desde el mapeo de este proyecto en Configuración → Plane."
+                  : "Plane no trae este dato — se define acá, al tipificar."}
+              </p>
             </div>
 
             <div className="flex flex-col gap-1.5">
@@ -198,6 +220,7 @@ export default async function TipificarTicketPage({
                 name="reporterName"
                 type="text"
                 required
+                defaultValue={user.name}
                 placeholder="Nombre y apellido"
                 className={FIELD_CLASS}
               />
@@ -247,9 +270,9 @@ export default async function TipificarTicketPage({
             <textarea id="comments" name="comments" rows={3} className={FIELD_CLASS} />
           </div>
 
-          <Button type="submit" className="w-fit">
+          <SubmitButton className="w-fit" pendingText="Creando…">
             Crear registro y vincular
-          </Button>
+          </SubmitButton>
         </form>
       </Card>
     </div>

@@ -6,7 +6,7 @@ import { getIndicatorToleranceStatus, type Area, type SgcIndicator } from "@/lib
 import { guardarIndicadorAction } from "@/lib/actions/indicators";
 
 const inputClass =
-  "w-full rounded-xl border border-border bg-white px-3 py-2 text-sm text-avenida-black placeholder:text-muted focus:border-avenida-violet focus:outline-none focus:ring-2 focus:ring-avenida-violet/20";
+  "w-full rounded-xl border border-border bg-white px-3 py-2 text-sm text-avenida-black placeholder:text-muted focus:border-avenida-violet focus:outline-none focus:ring-2 focus:ring-avenida-violet/20 disabled:cursor-not-allowed disabled:bg-avenida-gray/20 disabled:text-muted";
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
@@ -17,7 +17,15 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
   );
 }
 
-export function ResumenTab({ indicator, areas }: { indicator: SgcIndicator; areas: Area[] }) {
+export function ResumenTab({
+  indicator,
+  areas,
+  canEdit = true,
+}: {
+  indicator: SgcIndicator;
+  areas: Area[];
+  canEdit?: boolean;
+}) {
   const status = getIndicatorToleranceStatus(indicator);
 
   return (
@@ -35,6 +43,7 @@ export function ResumenTab({ indicator, areas }: { indicator: SgcIndicator; area
       <Card className="flex flex-col gap-4 p-5">
         <form action={guardarIndicadorAction} className="flex flex-col gap-4">
           <input type="hidden" name="code" value={indicator.code} />
+          <fieldset disabled={!canEdit} className="contents">
 
           <Field label="Nombre">
             <input name="name" defaultValue={indicator.name} required className={inputClass} />
@@ -92,11 +101,16 @@ export function ResumenTab({ indicator, areas }: { indicator: SgcIndicator; area
             </Field>
           </div>
 
-          <div>
-            <Button type="submit" size="sm">
-              Guardar
-            </Button>
-          </div>
+          </fieldset>
+          {canEdit ? (
+            <div>
+              <Button type="submit" size="sm">
+                Guardar
+              </Button>
+            </div>
+          ) : (
+            <p className="text-xs text-muted">Solo lectura — tu rol no permite editar este ítem.</p>
+          )}
         </form>
       </Card>
     </div>

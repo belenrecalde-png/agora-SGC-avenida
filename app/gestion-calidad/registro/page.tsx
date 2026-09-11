@@ -3,6 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { LinkButton } from "@/components/ui/button";
 import { RegistroTable } from "@/components/gestion-calidad/registro-table";
 import { listAreas, listRecords, listRecordTypes } from "@/lib/db/queries";
+import { filterByAreaAccess, requireGestionAccess } from "@/lib/auth/access";
 
 export const dynamic = "force-dynamic";
 
@@ -10,8 +11,9 @@ export const metadata = {
   title: `Registro SGC | Ágora`,
 };
 
-export default function RegistroSgcPage() {
-  const records = listRecords();
+export default async function RegistroSgcPage() {
+  const user = await requireGestionAccess();
+  const records = filterByAreaAccess(listRecords(), user);
   const types = listRecordTypes();
   const areas = listAreas();
 
@@ -38,8 +40,7 @@ export default function RegistroSgcPage() {
           Todos los reportes cargados en Ágora (NC, AC, AP, OM, Q, S, R), en un solo listado.
         </p>
         <Badge tone="gray" className="w-fit">
-          {records.length} {records.length === 1 ? "registro" : "registros"} · el análisis de causa, la
-          Acción Correctiva y la verificación de eficacia se habilitan en la Fase 7
+          {records.length} {records.length === 1 ? "registro" : "registros"}
         </Badge>
       </div>
 

@@ -1,18 +1,23 @@
 import { ShieldAlert } from "lucide-react";
-import { PlaceholderPage } from "@/components/layout/placeholder-page";
+import { TipoRegistroView } from "@/components/gestion-calidad/tipo-registro-view";
+import { loadTipoRegistroData } from "@/lib/gestion-tipo";
+
+export const dynamic = "force-dynamic";
 
 export const metadata = {
   title: `Acciones Preventivas | Ágora`,
 };
 
-export default function Page() {
+export default async function Page() {
+  const { records, types, areas } = await loadTipoRegistroData("AP");
   return (
-    <PlaceholderPage
-      icon={ShieldAlert}
+    <TipoRegistroView
       title="Acciones Preventivas"
       description="Acciones tomadas ante situaciones potenciales, antes de que el problema ocurra, relacionadas con riesgos, oportunidades y controles."
-      phase="Fase 7"
-      sectionLabel="Gestión de Calidad"
+      icon={ShieldAlert}
+      records={records}
+      types={types}
+      areas={areas}
     />
   );
 }

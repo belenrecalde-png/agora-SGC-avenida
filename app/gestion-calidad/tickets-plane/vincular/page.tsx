@@ -1,9 +1,12 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { ArrowLeft, ExternalLink } from "lucide-react";
 import { Card } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+import { SubmitButton } from "@/components/ui/submit-button";
 import { getWorkItem, getWorkItemUrl, isPlaneConfigured, resolveWorkItemStatus } from "@/lib/plane/client";
 import { vincularTicketAction } from "@/lib/actions/plane-tickets";
+import { getPlaneProjectMappingByProjectId } from "@/lib/db/queries";
+import { hasFullAreaAccess, requireTicketsPlaneAccess } from "@/lib/auth/access";
 
 export const dynamic = "force-dynamic";
 
@@ -19,6 +22,7 @@ export default async function VincularTicketPage({
 }: {
   searchParams: Promise<{ projectId?: string; workItemId?: string }>;
 }) {
+  const user = await requireTicketsPlaneAccess();
   const { projectId, workItemId } = await searchParams;
 
   if (!projectId || !workItemId) {
@@ -58,6 +62,11 @@ export default async function VincularTicketPage({
         </Link>
       </div>
     );
+  }
+
+  const mapping = getPlaneProjectMappingByProjectId(projectId);
+  if (!hasFullAreaAccess(user.role) && mapping?.area_id !== user.area_id) {
+    redirect("/gestion-calidad/tickets-plane");
   }
 
   const status = await resolveWorkItemStatus(projectId, ticket).catch(() => null);
@@ -120,9 +129,9 @@ export default async function VincularTicketPage({
             </p>
           </div>
 
-          <Button type="submit" className="w-fit">
+          <SubmitButton className="w-fit" pendingText="Vinculando…">
             Vincular ticket
-          </Button>
+          </SubmitButton>
         </form>
       </Card>
     </div>

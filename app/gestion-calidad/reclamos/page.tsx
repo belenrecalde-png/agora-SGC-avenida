@@ -1,18 +1,23 @@
 import { FileWarning } from "lucide-react";
-import { PlaceholderPage } from "@/components/layout/placeholder-page";
+import { TipoRegistroView } from "@/components/gestion-calidad/tipo-registro-view";
+import { loadTipoRegistroData } from "@/lib/gestion-tipo";
+
+export const dynamic = "force-dynamic";
 
 export const metadata = {
   title: `Reclamos | Ágora`,
 };
 
-export default function Page() {
+export default async function Page() {
+  const { records, types, areas } = await loadTipoRegistroData("R");
   return (
-    <PlaceholderPage
-      icon={FileWarning}
+    <TipoRegistroView
       title="Reclamos"
       description="Solicitudes formales de resolución ante un incumplimiento, con fecha compromiso y respuesta, vinculables a NC o AC."
-      phase="Fase 3 y 7"
-      sectionLabel="Gestión de Calidad"
+      icon={FileWarning}
+      records={records}
+      types={types}
+      areas={areas}
     />
   );
 }

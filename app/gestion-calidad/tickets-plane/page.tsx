@@ -4,6 +4,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { TicketsPlaneTable } from "@/components/gestion-calidad/tickets-plane-table";
 import { listTicketsPlaneRows } from "@/lib/plane/tickets";
+import { hasFullAreaAccess, requireTicketsPlaneAccess } from "@/lib/auth/access";
 
 export const dynamic = "force-dynamic";
 
@@ -12,7 +13,9 @@ export const metadata = {
 };
 
 export default async function TicketsPlanePage() {
-  const { configured, projects, rows, projectErrors } = await listTicketsPlaneRows();
+  const user = await requireTicketsPlaneAccess();
+  const onlyAreaId = hasFullAreaAccess(user.role) ? undefined : user.area_id;
+  const { configured, projects, rows, projectErrors } = await listTicketsPlaneRows(onlyAreaId);
 
   const pendientes = rows.filter((r) => r.classification === "pending").length;
   const tipificados = rows.filter((r) => r.classification === "linked").length;
@@ -58,6 +61,20 @@ export default async function TicketsPlanePage() {
             {rows.length} {rows.length === 1 ? "ticket" : "tickets"} · {pendientes} pendientes de tipificar ·{" "}
             {projects.map((p) => p.name).join(", ")}
           </Badge>
+        )}
+        {configured && projects.some((p) => p.importLabel) && (
+          <p className="text-xs text-muted">
+            Filtrado por etiqueta:{" "}
+            {projects
+              .filter((p) => p.importLabel)
+              .map((p) => `${p.name} → "${p.importLabel}"`)
+              .join(" · ")}
+            . Los proyectos sin etiqueta muestran todos sus tickets. Se puede ajustar en{" "}
+            <Link href="/configuracion/plane" className="text-avenida-violet hover:underline">
+              Configuración → Plane
+            </Link>
+            .
+          </p>
         )}
       </div>
 

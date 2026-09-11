@@ -125,6 +125,16 @@ CREATE TABLE IF NOT EXISTS plane_ticket_dismissals (
   created_at TEXT NOT NULL
 );
 
+-- Configuración general del sitio, clave/valor genérico — por ahora solo se
+-- usa para recordar el archivo de la foto del equipo en el Home
+-- ("home_photo_filename"), pero queda pensada para cualquier otro ajuste
+-- global futuro sin tener que agregar una tabla nueva cada vez.
+CREATE TABLE IF NOT EXISTS site_settings (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
 -- Fase 7: vínculos entre dos registros del SGC (NC->AC, Q->NC, R->AC, etc.). Genérica
 -- y bidireccional a propósito: no se modela como una columna "AC relacionada" en
 -- records porque un mismo registro puede terminar vinculado a más de uno (a
@@ -278,6 +288,21 @@ CREATE TABLE IF NOT EXISTS sgc_indicator_results (
   created_at TEXT NOT NULL
 );
 
+-- Evaluación → Satisfacción: resultados de satisfacción del cliente por
+-- período (encuestas, NPS, CSAT, lo que use cada área), vinculados en la
+-- pantalla con las Quejas y Reclamos ya cargados en el Registro SGC.
+CREATE TABLE IF NOT EXISTS sgc_satisfaction_results (
+  id TEXT PRIMARY KEY,
+  period TEXT NOT NULL,
+  area_id TEXT,
+  score REAL NOT NULL,
+  unit TEXT,
+  respondents INTEGER,
+  notes TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
 -- Autenticación: usuarios reales del portal (login con Google Workspace).
 -- "role" es texto libre a propósito (no CHECK) para no tener que migrar el
 -- esquema si el usuario pide un rol nuevo más adelante — los valores válidos
@@ -376,6 +401,71 @@ function ensureActivityLogActorColumns(db: DatabaseSync) {
   ensureColumns(db, "activity_log", ACTIVITY_LOG_ACTOR_COLUMNS);
 }
 
+// Fase 6 (etiqueta de importación): filtro opcional para no traer TODOS los
+// work items del proyecto mapeado a "Gestión de Calidad → Tickets Plane" —
+// si se completa, solo se listan como pendientes de tipificar los que tengan
+// esa etiqueta en Plane. Sin ella, se mantiene el comportamiento anterior
+// (se listan todos los work items del proyecto).
+// `auto_type_code`: tipo SGC sugerido (código de `record_types`) para
+// pre-cargar al tipificar un ticket de este proyecto — no crea el registro
+// solo, sigue exigiendo el click de "Crear registro y vincular" (a propósito,
+// ver la nota de `tipificarTicketAction`), pero evita elegir tipo y área a
+// mano cada vez que ya se sabe de antemano qué va a ser.
+const PLANE_MAPPING_LABEL_COLUMNS: { name: string; ddl: string }[] = [
+  { name: "import_label", ddl: "ALTER TABLE plane_project_mappings ADD COLUMN import_label TEXT" },
+  { name: "auto_type_code", ddl: "ALTER TABLE plane_project_mappings ADD COLUMN auto_type_code TEXT" },
+];
+
+function ensurePlaneMappingLabelColumn(db: DatabaseSync) {
+  ensureColumns(db, "plane_project_mappings", PLANE_MAPPING_LABEL_COLUMNS);
+}
+
+// Notificaciones (campana del header): en vez de una tabla de notificaciones
+// propiamente dicha, se reutiliza `activity_log` (ya filtrado por relevancia
+// para cada usuario, mismo criterio que "Mi SGC" → Últimos movimientos) y se
+// guarda solo cuándo cada usuario vio la campana por última vez — todo lo
+// posterior a esa fecha cuenta como "no leído". Más simple que trackear el
+// estado de lectura de cada evento por separado, y alcanza para una campana
+// que se marca como leída al abrirla (no ítem por ítem).
+const USER_NOTIFICATIONS_COLUMNS: { name: string; ddl: string }[] = [
+  { name: "notifications_last_seen_at", ddl: "ALTER TABLE users ADD COLUMN notifications_last_seen_at TEXT" },
+];
+
+function ensureUserNotificationsColumn(db: DatabaseSync) {
+  ensureColumns(db, "users", USER_NOTIFICATIONS_COLUMNS);
+}
+
+// Sincronización con la planilla real de Objetivos de Calidad del usuario
+// (Google Sheets) — `sheet_row` es la fila que le corresponde a este
+// objetivo en la planilla (null hasta que se importa o se sincroniza por
+// primera vez); `sheet_no` conserva el "N°" original de la planilla, solo
+// para mostrar, no se usa para direccionar nada. `indicator_text` y
+// `policy_principle` son 2 columnas de la planilla sin equivalente en el
+// modelo del portal hasta ahora — se agregan tal cual, en vez de forzarlas
+// dentro de un campo que significa otra cosa (`indicator_id` es una FK real
+// a `sgc_indicators`, no texto libre).
+const OBJECTIVE_SHEET_COLUMNS: { name: string; ddl: string }[] = [
+  { name: "sheet_row", ddl: "ALTER TABLE sgc_objectives ADD COLUMN sheet_row INTEGER" },
+  { name: "sheet_no", ddl: "ALTER TABLE sgc_objectives ADD COLUMN sheet_no TEXT" },
+  { name: "indicator_text", ddl: "ALTER TABLE sgc_objectives ADD COLUMN indicator_text TEXT" },
+  { name: "policy_principle", ddl: "ALTER TABLE sgc_objectives ADD COLUMN policy_principle TEXT" },
+];
+
+function ensureObjectiveSheetColumns(db: DatabaseSync) {
+  ensureColumns(db, "sgc_objectives", OBJECTIVE_SHEET_COLUMNS);
+}
+
+// Igual que `OBJECTIVE_SHEET_COLUMNS` pero para Riesgos y Oportunidades —
+// planilla distinta (2 pestañas, "Riesgos" y "Oportunidades", mismo layout).
+const RISK_SHEET_COLUMNS: { name: string; ddl: string }[] = [
+  { name: "sheet_row", ddl: "ALTER TABLE sgc_risks ADD COLUMN sheet_row INTEGER" },
+  { name: "sheet_no", ddl: "ALTER TABLE sgc_risks ADD COLUMN sheet_no TEXT" },
+];
+
+function ensureRiskSheetColumns(db: DatabaseSync) {
+  ensureColumns(db, "sgc_risks", RISK_SHEET_COLUMNS);
+}
+
 const SEED_AREAS: { id: string; name: string; sort_order: number }[] = [
   { id: "operaciones", name: "Operaciones", sort_order: 1 },
   { id: "comercial", name: "Comercial", sort_order: 2 },
@@ -409,6 +499,10 @@ function migrate(db: DatabaseSync) {
   ensureRecordsPlaneColumns(db);
   ensureRecordsGestionColumns(db);
   ensureActivityLogActorColumns(db);
+  ensurePlaneMappingLabelColumn(db);
+  ensureUserNotificationsColumn(db);
+  ensureObjectiveSheetColumns(db);
+  ensureRiskSheetColumns(db);
 }
 
 function seed(db: DatabaseSync) {

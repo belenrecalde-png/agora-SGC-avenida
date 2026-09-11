@@ -43,6 +43,8 @@ import {
   Plug,
   ScrollText,
   Boxes,
+  ImageIcon,
+  Sheet,
   type LucideIcon,
 } from "lucide-react";
 
@@ -93,6 +95,8 @@ const ICONS: Record<string, LucideIcon> = {
   Plug,
   ScrollText,
   Boxes,
+  ImageIcon,
+  Sheet,
 };
 
 export type NavItem = {

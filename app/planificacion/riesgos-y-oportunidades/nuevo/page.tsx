@@ -1,9 +1,10 @@
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { Card } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+import { SubmitButton } from "@/components/ui/submit-button";
 import { listAreas } from "@/lib/db/queries";
 import { crearRiesgoAction } from "@/lib/actions/risks";
+import { requireCreateAccess } from "@/lib/auth/access";
 
 export const dynamic = "force-dynamic";
 
@@ -20,6 +21,7 @@ export default async function NuevoRiesgoPage({
 }: {
   searchParams: Promise<{ kind?: string }>;
 }) {
+  await requireCreateAccess("/planificacion/riesgos-y-oportunidades");
   const { kind } = await searchParams;
   const areas = listAreas({ onlyActive: true });
   const defaultKind = kind === "oportunidad" ? "oportunidad" : "riesgo";
@@ -184,9 +186,9 @@ export default async function NuevoRiesgoPage({
             </div>
           </div>
 
-          <Button type="submit" className="w-fit">
+          <SubmitButton className="w-fit" pendingText="Guardando…">
             Guardar
-          </Button>
+          </SubmitButton>
         </form>
       </Card>
     </div>

@@ -2,7 +2,8 @@ import { Plug } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Badge, type BadgeTone } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { listAreas, listPlaneProjectMappings, listPlaneSyncLogs } from "@/lib/db/queries";
+import { SubmitButton } from "@/components/ui/submit-button";
+import { listAreas, listPlaneProjectMappings, listPlaneSyncLogs, listRecordTypes } from "@/lib/db/queries";
 import { getPlaneConfigStatus } from "@/lib/plane/client";
 import {
   deletePlaneMappingAction,
@@ -37,6 +38,7 @@ function statusLabel(status: string): string {
 export default function PlanePage() {
   const areas = listAreas();
   const mappings = listPlaneProjectMappings();
+  const types = listRecordTypes({ onlyActive: true });
   const configStatus = getPlaneConfigStatus();
   const recentAttempts = listPlaneSyncLogs(8);
 
@@ -116,7 +118,19 @@ export default function PlanePage() {
                       {mapping.plane_project_name ? `${mapping.plane_project_name} — ` : ""}
                       <code>{mapping.plane_project_id}</code>
                     </p>
-                    {!mapping.active && <Badge tone="gray">Mapeo desactivado</Badge>}
+                    <div className="flex flex-wrap gap-1.5">
+                      {mapping.import_label ? (
+                        <Badge tone="violet">Solo etiqueta &ldquo;{mapping.import_label}&rdquo;</Badge>
+                      ) : (
+                        <Badge tone="gray">Sin etiqueta — trae todos los tickets del proyecto</Badge>
+                      )}
+                      {mapping.auto_type_code && (
+                        <Badge tone="blue">
+                          Pre-carga como {types.find((t) => t.code === mapping.auto_type_code)?.name ?? mapping.auto_type_code}
+                        </Badge>
+                      )}
+                      {!mapping.active && <Badge tone="gray">Mapeo desactivado</Badge>}
+                    </div>
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
                     <form action={testPlaneConnectionAction}>
@@ -179,9 +193,42 @@ export default function PlanePage() {
             placeholder="Nombre del proyecto en Plane (opcional, solo para mostrar acá)"
             className="h-10 rounded-xl border border-border bg-white px-3 text-sm text-avenida-black placeholder:text-muted focus:border-avenida-violet focus:outline-none focus:ring-2 focus:ring-avenida-violet/20"
           />
-          <Button type="submit" className="self-start">
+          <input
+            name="importLabel"
+            type="text"
+            placeholder='Etiqueta de Plane para traer tickets (opcional, ej. "SGC")'
+            className="h-10 rounded-xl border border-border bg-white px-3 text-sm text-avenida-black placeholder:text-muted focus:border-avenida-violet focus:outline-none focus:ring-2 focus:ring-avenida-violet/20"
+          />
+          <p className="text-xs text-muted">
+            Si cargás una etiqueta, en <span className="font-medium">Gestión de Calidad → Tickets Plane</span> solo
+            aparecen como pendientes de tipificar los work items de este proyecto que tengan esa etiqueta en Plane
+            (el nombre tiene que ser exacto). Si la dejás vacía, aparecen todos los tickets del proyecto.
+          </p>
+          <div className="flex flex-col gap-1.5">
+            <label htmlFor="autoTypeCode" className="text-xs font-medium text-avenida-black">
+              Tipo sugerido al tipificar (opcional)
+            </label>
+            <select
+              id="autoTypeCode"
+              name="autoTypeCode"
+              defaultValue=""
+              className="h-10 rounded-xl border border-border bg-white px-3 text-sm text-avenida-black focus:border-avenida-violet focus:outline-none focus:ring-2 focus:ring-avenida-violet/20"
+            >
+              <option value="">Sin sugerencia — elegir a mano cada vez</option>
+              {types.map((type) => (
+                <option key={type.id} value={type.code}>
+                  {type.name} ({type.code})
+                </option>
+              ))}
+            </select>
+            <p className="text-xs text-muted">
+              Pre-carga el tipo y el área en la pantalla de &ldquo;Tipificar&rdquo; para los tickets de este
+              proyecto — sigue haciendo falta confirmar y guardar a mano, no crea el registro solo.
+            </p>
+          </div>
+          <SubmitButton className="self-start" pendingText="Guardando…">
             Guardar mapeo
-          </Button>
+          </SubmitButton>
         </form>
         {unmappedAreas.length > 0 && (
           <p className="text-xs text-muted">

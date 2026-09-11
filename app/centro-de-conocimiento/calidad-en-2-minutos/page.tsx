@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { Sparkles, ArrowRight, Clock } from "lucide-react";
 import { Card } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { TWO_MINUTE_CAPSULES } from "@/lib/two-minutes-data";
 import { getConceptById } from "@/lib/concepts-data";
 
@@ -31,9 +30,6 @@ export default function CalidadEnDosMinutosPage() {
         <p className="text-sm text-avenida-black">
           Cápsulas breves que responden, en menos de 2 minutos, las preguntas más comunes sobre Calidad.
         </p>
-        <Badge tone="amber" className="w-fit">
-          Borrador — contenido a revisar por el equipo de Calidad
-        </Badge>
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">

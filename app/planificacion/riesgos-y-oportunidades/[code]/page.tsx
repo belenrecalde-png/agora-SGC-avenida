@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { ArrowLeft, Clock } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Badge, type BadgeTone } from "@/components/ui/badge";
@@ -17,6 +17,8 @@ import {
   listRiskControls,
   listRiskRelationshipsForRisk,
 } from "@/lib/db/queries";
+import { canEditAreaScoped, canViewAreaScoped } from "@/lib/auth/access";
+import { requireUser } from "@/lib/auth/dal";
 
 export const dynamic = "force-dynamic";
 
@@ -53,6 +55,10 @@ export default async function RiesgoDetallePage({
   const { tab, estadoError } = await searchParams;
   const risk = getRiskByCode(code);
   if (!risk) notFound();
+
+  const user = await requireUser();
+  if (!canViewAreaScoped(risk, user)) redirect("/mi-sgc");
+  const canEdit = canEditAreaScoped(risk, user);
 
   const areas = listAreas();
   const area = risk.area_id ? areas.find((a) => a.id === risk.area_id) : undefined;
@@ -101,10 +107,10 @@ export default async function RiesgoDetallePage({
 
       <RiskTabs code={risk.code} active={activeTab} tabs={tabs} />
 
-      {activeTab === "resumen" && <TratamientoTab risk={risk} areas={areas} />}
-      {activeTab === "controles" && <ControlesTab risk={risk} controls={controls} />}
-      {activeTab === "valoracion" && <ValoracionTab risk={risk} estadoError={estadoError} />}
-      {activeTab === "relaciones" && <RiesgoRelacionesTab risk={risk} links={relationships} />}
+      {activeTab === "resumen" && <TratamientoTab risk={risk} areas={areas} canEdit={canEdit} />}
+      {activeTab === "controles" && <ControlesTab risk={risk} controls={controls} canEdit={canEdit} />}
+      {activeTab === "valoracion" && <ValoracionTab risk={risk} estadoError={estadoError} canEdit={canEdit} />}
+      {activeTab === "relaciones" && <RiesgoRelacionesTab risk={risk} links={relationships} canEdit={canEdit} />}
 
       {activeTab === "historial" && (
         <Card className="flex flex-col divide-y divide-border p-0">

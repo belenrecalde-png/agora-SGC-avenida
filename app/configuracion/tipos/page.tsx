@@ -2,6 +2,7 @@ import { Tag } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Badge, type BadgeTone } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { SubmitButton } from "@/components/ui/submit-button";
 import { listRecordTypes } from "@/lib/db/queries";
 import { createRecordTypeAction, toggleRecordTypeAction } from "@/lib/actions/admin";
 
@@ -96,9 +97,9 @@ export default function TiposPage() {
                 </option>
               ))}
             </select>
-            <Button type="submit" className="ml-auto shrink-0">
+            <SubmitButton className="ml-auto shrink-0" pendingText="Agregando…">
               Agregar
-            </Button>
+            </SubmitButton>
           </div>
         </form>
       </Card>

@@ -9,6 +9,7 @@ import {
   guardarAnalisisAction,
   vincularAccionExistenteAction,
 } from "@/lib/actions/gestion";
+import { RootCauseSelect } from "@/components/gestion-calidad/root-cause-select";
 
 const ROOT_CAUSE_METHODS = [
   { value: "", label: "Sin definir" },
@@ -36,12 +37,23 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
   );
 }
 
+function ReadOnlyField({ label, value }: { label: string; value: string | null }) {
+  return (
+    <div className="flex flex-col gap-1">
+      <p className="text-xs font-semibold uppercase tracking-wide text-muted">{label}</p>
+      <p className="text-sm text-avenida-black">{value || "Sin definir"}</p>
+    </div>
+  );
+}
+
 export function AnalisisTab({
   record,
   correctiveActions,
+  canEdit = true,
 }: {
   record: SgcRecord;
   correctiveActions: RecordRelationship[];
+  canEdit?: boolean;
 }) {
   return (
     <div className="flex flex-col gap-6">
@@ -53,6 +65,21 @@ export function AnalisisTab({
             pasar, atacando la causa raíz.
           </p>
         </div>
+        {!canEdit ? (
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <ReadOnlyField label="Acción de corrección inmediata" value={record.correction_action} />
+            <ReadOnlyField label="Responsable de la corrección" value={record.correction_responsible} />
+            <ReadOnlyField label="Fecha de la corrección" value={record.correction_date} />
+            <ReadOnlyField
+              label="Método de análisis"
+              value={ROOT_CAUSE_METHODS.find((m) => m.value === record.root_cause_method)?.label ?? null}
+            />
+            <ReadOnlyField label="Causa raíz identificada" value={record.root_cause} />
+            <div className="sm:col-span-2">
+              <ReadOnlyField label="Desarrollo del análisis" value={record.root_cause_analysis} />
+            </div>
+          </div>
+        ) : (
         <form action={guardarAnalisisAction} className="flex flex-col gap-4">
           <input type="hidden" name="code" value={record.code} />
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
@@ -81,14 +108,7 @@ export function AnalisisTab({
                 ))}
               </select>
             </Field>
-            <Field label="Causa raíz identificada">
-              <input
-                name="rootCause"
-                defaultValue={record.root_cause ?? ""}
-                placeholder="La causa de fondo, no el síntoma"
-                className={inputClass}
-              />
-            </Field>
+            <RootCauseSelect name="rootCause" defaultValue={record.root_cause} />
           </div>
           <Field label="Desarrollo del análisis">
             <textarea
@@ -105,6 +125,7 @@ export function AnalisisTab({
             </Button>
           </div>
         </form>
+        )}
       </Card>
 
       <Card className="flex flex-col gap-4 p-5">
@@ -131,51 +152,53 @@ export function AnalisisTab({
           </div>
         )}
 
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-          <form action={crearAccionCorrectivaAction} className="flex flex-col gap-3 rounded-xl border border-border p-4">
-            <p className="text-sm font-medium text-avenida-black">Crear una Acción Correctiva nueva</p>
-            <input type="hidden" name="code" value={record.code} />
-            <Field label="Título">
-              <input name="title" required placeholder="Ej.: Reforzar control de stock en el panel" className={inputClass} />
-            </Field>
-            <Field label="Acción a realizar">
-              <textarea name="description" required rows={3} className={inputClass} />
-            </Field>
-            <div className="grid grid-cols-2 gap-3">
-              <Field label="Responsable">
-                <input name="responsible" required className={inputClass} />
+        {canEdit && (
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            <form action={crearAccionCorrectivaAction} className="flex flex-col gap-3 rounded-xl border border-border p-4">
+              <p className="text-sm font-medium text-avenida-black">Crear una Acción Correctiva nueva</p>
+              <input type="hidden" name="code" value={record.code} />
+              <Field label="Título">
+                <input name="title" required placeholder="Ej.: Reforzar control de stock en el panel" className={inputClass} />
               </Field>
-              <Field label="Fecha objetivo">
-                <input type="date" name="dueDate" className={inputClass} />
+              <Field label="Acción a realizar">
+                <textarea name="description" required rows={3} className={inputClass} />
               </Field>
-            </div>
-            <Field label="Prioridad">
-              <select name="priority" defaultValue="Media" className={inputClass}>
-                <option value="Baja">Baja</option>
-                <option value="Media">Media</option>
-                <option value="Alta">Alta</option>
-              </select>
-            </Field>
-            <div>
-              <Button type="submit" variant="secondary" size="sm">
-                Crear Acción Correctiva
-              </Button>
-            </div>
-          </form>
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Responsable">
+                  <input name="responsible" required className={inputClass} />
+                </Field>
+                <Field label="Fecha objetivo">
+                  <input type="date" name="dueDate" className={inputClass} />
+                </Field>
+              </div>
+              <Field label="Prioridad">
+                <select name="priority" defaultValue="Media" className={inputClass}>
+                  <option value="Baja">Baja</option>
+                  <option value="Media">Media</option>
+                  <option value="Alta">Alta</option>
+                </select>
+              </Field>
+              <div>
+                <Button type="submit" variant="secondary" size="sm">
+                  Crear Acción Correctiva
+                </Button>
+              </div>
+            </form>
 
-          <form action={vincularAccionExistenteAction} className="flex flex-col gap-3 rounded-xl border border-border p-4">
-            <p className="text-sm font-medium text-avenida-black">Vincular una Acción Correctiva ya existente</p>
-            <input type="hidden" name="code" value={record.code} />
-            <Field label="Código del registro AC">
-              <input name="targetCode" required placeholder="Ej.: AC-2026-003" className={inputClass} />
-            </Field>
-            <div>
-              <Button type="submit" variant="secondary" size="sm">
-                Vincular
-              </Button>
-            </div>
-          </form>
-        </div>
+            <form action={vincularAccionExistenteAction} className="flex flex-col gap-3 rounded-xl border border-border p-4">
+              <p className="text-sm font-medium text-avenida-black">Vincular una Acción Correctiva ya existente</p>
+              <input type="hidden" name="code" value={record.code} />
+              <Field label="Código del registro AC">
+                <input name="targetCode" required placeholder="Ej.: AC-2026-003" className={inputClass} />
+              </Field>
+              <div>
+                <Button type="submit" variant="secondary" size="sm">
+                  Vincular
+                </Button>
+              </div>
+            </form>
+          </div>
+        )}
       </Card>
     </div>
   );

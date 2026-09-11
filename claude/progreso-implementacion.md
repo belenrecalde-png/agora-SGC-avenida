@@ -432,6 +432,369 @@ El usuario reportó "el logo se ve mal" en el pie del sidebar (el lockup "avenid
 
 `tsc --noEmit`, `npm run lint` y `npm run build` sin errores tras el fix.
 
+## Filtro por etiqueta en "Tickets Plane" (2026-09-08)
+
+Contexto: el usuario todavía no tiene nada cargado en el portal (ni un solo reporte real) y preguntó por conectar Plane para no arrancar de cero. Se le aclaró la diferencia entre lo que ya existía (Fase 4: portal → Plane, crea un work item por cada reporte nuevo del portal; y Fase 6: pantalla "Gestión de Calidad → Tickets Plane", que lista TODOS los work items de los proyectos mapeados para que un humano los tipifique/vincule/descarte uno por uno) y lo que no existía (nada trae selectivamente tickets ya existentes en Plane). El usuario prefirió explícitamente filtrar por etiqueta en vez de traer el proyecto completo: *"Prefiero por etiqueta porque sino todo lo del proyecto voy a tener que tipificarlo a mano"*.
+
+Se agregó un campo opcional `import_label` al mapeo área↔proyecto de Plane (`plane_project_mappings`, vía `ensureColumns` como el resto de las migraciones de esta base):
+
+- **`lib/plane/client.ts`** — `listLabels(projectId)` (⚠️ mismo estado que `listWorkItems`: endpoint `/projects/{id}/labels/` no verificado contra una instancia real, documentado con el mismo criterio de "asunción explícita" ya usado en este archivo), con caché en memoria igual que `listStates`. `resolveLabelId(projectId, nombre)` busca por nombre (case-insensitive) y devuelve el UUID. `workItemHasLabel(item, labelId)` — ⚠️ el nombre del campo que trae las etiquetas en un work item (`label_ids` vs `labels`) tampoco está confirmado; se prueban ambos nombres, documentado en el propio tipo `PlaneWorkItem`.
+- **`lib/plane/tickets.ts`** (`listTicketsPlaneRows`) — si el mapeo tiene `import_label` cargado, resuelve el nombre a UUID y filtra los work items del proyecto a solo los que lo tengan; si la etiqueta no se encuentra en Plane, se muestra como error de proyecto (no se rompe el resto de la pantalla). Sin etiqueta cargada, sigue trayendo todos los tickets del proyecto (comportamiento original de la Fase 6, sin romper mapeos existentes).
+- **`app/configuracion/plane/page.tsx`** — nuevo campo "Etiqueta de Plane para traer tickets (opcional)" en el form de mapeo, y un badge en cada mapeo mostrando si está filtrado por etiqueta o trae todo el proyecto.
+- **`app/gestion-calidad/tickets-plane/page.tsx`** — aviso de qué etiqueta está aplicada por proyecto.
+
+**Sin verificar contra una instancia real todavía** (igual que el resto de la Fase 4/6 — nunca hubo credenciales reales para probar): la forma exacta de `/labels/` y el nombre del campo de etiquetas en un work item. En cuanto el usuario cargue `PLANE_BASE_URL`/`PLANE_WORKSPACE_SLUG`/`PLANE_API_KEY` reales y pruebe la conexión, hay que confirmar esto de entrada con un proyecto real (si `workItemHasLabel` no encuentra nada pese a que el ticket sí tiene la etiqueta en Plane, este es el primer lugar a revisar).
+
+`tsc --noEmit`, `npm run lint` y `npm run build` sin errores tras el cambio.
+
+**✅ Confirmado de punta a punta (2026-09-08)**: el usuario cargó sus credenciales reales de Plane self-hosted (`plane.avenidamas.dev`) en `.env.local` y pasó el UUID de un proyecto real ("Administración", que coincide 1:1 con el área del mismo nombre). Antes de tocar la UI se probaron los tres endpoints en crudo con `curl` contra la instancia real (proyecto, labels, work items) — los tres respondieron `200` con exactamente la forma asumida en el código (`{ results: [...], next_cursor, ... }`). Único ajuste real necesario: el campo de etiquetas en un work item es `labels` (no `label_ids`) — como `workItemHasLabel()` ya probaba ambos nombres, **no hizo falta cambiar código**, solo se actualizaron los comentarios de "asunción sin confirmar" a "confirmado". Con eso resuelto, se probó el flujo completo por la UI (Playwright + `dev-login`, mismo criterio de siempre): mapeo Administración → proyecto real con etiqueta `SGC` guardado, "Probar conexión" dio OK contra la instancia real, y **Tickets Plane** mostró exactamente 1 ticket pendiente de tipificar (el de prueba que el usuario había etiquetado "SGC" en Plane) — confirmando que el filtro por etiqueta funciona en producción, no solo en teoría. Entorno de prueba limpiado después (playwright desinstalado, `ENABLE_DEV_LOGIN` vuelto a `false`, server reiniciado).
+
+## ⚠️ Bug real encontrado y corregido: envíos duplicados por falta de disabled-on-submit (2026-09-08)
+
+El usuario reportó: *"Se creo 3 veces eso por que?"* después de probar `/reportar/nuevo`. Se confirmó en la base: 3 registros reales (`OM-2026-001/002/003`, mismo título "TEST OM", creados con ~1.5s de diferencia entre sí) y 3 tickets reales creados en el proyecto de Plane "Administración" — uno por cada registro, cada uno con su propio `plane_sync_logs` de éxito. **No es el bug de reintentos de `planeFetch`** (que hubiera reintentado la MISMA llamada 429/5xx hasta 2 veces) — son 3 invocaciones completas e independientes de `createReportAction`, cada una con su propio `createRecord` + `syncRecordToPlane`. Causa: el botón de submit (`<Button type="submit">`, un `<button>` HTML normal) queda clickeable mientras la Server Action está en curso — sin ningún feedback visual de "enviando", varios clicks (por ejemplo, por no ver reacción inmediata) disparan la Server Action una vez por click, y como esa acción tiene efectos reales (insert en `records` + POST a Plane), cada click duplica todo.
+
+**Corregido**: nuevo componente `components/ui/submit-button.tsx` (`SubmitButton`) que usa `useFormStatus()` de `react-dom` para deshabilitarse mientras el form está pendiente (mismo patrón que documenta la guía oficial de Next para Server Actions) y muestra un texto de carga (`pendingText`). Aplicado a los 9 formularios de creación con mayor riesgo (registro nuevo con código secuencial y/o efecto en Plane): `/reportar/nuevo`, `/planificacion/riesgos-y-oportunidades/nuevo`, `/evaluacion/indicadores/nuevo`, `/planificacion/objetivos-de-calidad/nuevo`, `/gestion-calidad/tickets-plane/tipificar`, `/gestion-calidad/tickets-plane/vincular`, `/configuracion/areas` (alta), `/configuracion/tipos` (alta), `/configuracion/plane` (guardar mapeo). Los botones de toggle/eliminar/actualizar (activar-desactivar, cambiar rol, etc.) se dejaron sin tocar a propósito — son operaciones que no crean un recurso nuevo por click, menor riesgo, para no ampliar el alcance del fix más allá del bug reportado.
+
+**Limpieza de los datos duplicados**: se borraron a mano (SQL directo, no hay función `deleteRecord` — no existe una en el portal, a propósito, para no borrar registros reales de auditoría) los 3 registros de prueba `OM-2026-001/002/003` de `records`/`activity_log`/`plane_sync_logs`. **Los 3 tickets duplicados siguen existiendo en Plane** — no hay forma de borrarlos desde el portal (no hay `deleteWorkItem` implementado, y no se construyó de oficio para no dar de baja algo real sin confirmación); el usuario los borra a mano en su instancia si quiere.
+
+`tsc --noEmit`, `npm run lint` y `npm run build` sin errores tras el fix.
+
+## "Tipo sugerido" al tipificar + pre-carga de reportante (2026-09-08)
+
+El usuario pidió replicar el mapeo Plane para IT (proyecto "Coati", etiqueta "mejora") y que esos tickets "se tipifiquen como OM" — se aclaró con el usuario si quería 100% automático (sin revisión humana) o pre-cargado con confirmación manual; eligió la segunda opción explícitamente, coherente con la razón ya documentada por la que Fase 6 nunca auto-creó registros desde Plane (un ticket no trae todos los campos que exige una OM).
+
+Se agregó `auto_type_code` al mapeo área↔proyecto de Plane (mismo mecanismo que `import_label`, `ensureColumns`). En Configuración → Plane, cada mapeo puede declarar un "Tipo sugerido al tipificar" opcional. `getPlaneProjectMappingByProjectId()` (nuevo en `queries.ts`) permite que `app/gestion-calidad/tickets-plane/tipificar/page.tsx` busque el mapeo del proyecto del ticket y pre-cargue `typeCode` y `areaId` con `defaultValue` (sigue siendo editable, sigue exigiendo el click de "Crear registro y vincular"). De paso se pre-carga también `reporterName` con el nombre de la sesión actual (`getCurrentUser()`) — antes quedaba en blanco a propósito, ahora tiene sentido default a quien lo está tipificando.
+
+**Verificado con datos reales de Coati**: el proyecto tiene 67 tickets en total, 32 con la etiqueta "Mejora" (con mayúscula — el match de `resolveLabelId` es case-insensitive, coincidió igual con "mejora" que cargó el usuario). Antes de confiar en el número se verificó directo contra la API (no solo se asumió que el filtro funcionaba) — confirmado que efectivamente son 32 de 67 los que tienen esa etiqueta, no un bug que mostrara todo el proyecto. La pantalla de Tipificar de uno de esos tickets mostró correctamente Clasificación SGC = "Oportunidad de Mejora (OM)", Área = "IT" (con nota de que salió del mapeo), Responsable = nombre de la sesión, y Prioridad prellenada desde Plane.
+
+`tsc --noEmit`, `npm run lint` y `npm run build` sin errores. Entorno de prueba limpiado (dev-login, playwright, scripts y capturas temporales).
+
+## "Mi SGC" reconectado a datos reales (2026-09-08)
+
+Último mock que quedaba en pie desde la Fase 1 (`lib/mock-mi-sgc.ts`, con el aviso explícito en pantalla "Datos de ejemplo — se conectan a tus registros reales en la Fase 3" — nunca se había retomado). Con auth real ya andando, se pudo cerrar esto: nuevo `lib/mi-sgc-data.ts` (mismo patrón que `lib/dashboard-data.ts` de la Fase 14 — agregaciones puras sobre `listRecords()`/`listRecentActivity()`, sin tabla nueva).
+
+**Limitación de fondo, documentada en el propio archivo**: no existe ningún campo "assignee" real en `records` — `reporter_name`, `correction_responsible` y `effectiveness_responsible` son texto libre (a propósito, para permitir reportar/asignar en nombre de otra persona). El cruce con el usuario logueado es por nombre normalizado (sin tildes, sin mayúsculas) contra `getCurrentUser().name`, no por ID — funciona bien mientras el nombre cargado en el registro coincida con el nombre real de la cuenta de Google, que es el caso esperado de acá en adelante.
+
+- **Mis reportes**: registros donde `reporter_name` coincide con el usuario logueado.
+- **Mis acciones asignadas**: registros abiertos donde el usuario es `correction_responsible` o `effectiveness_responsible`.
+- **Próximos vencimientos**: unión de los dos anteriores con fecha de vencimiento cargada (`due_date` o `effectiveness_due_date` según corresponda), ordenados por urgencia.
+- **Últimos movimientos**: `activity_log` filtrado a registros donde el usuario participa (reportante o responsable) — reutiliza `actor_email`/`actor_name` y los eventos que ya se registran solos (creación, sync con Plane, tipificación, etc.), sin agregar nada nuevo al log.
+
+Se agregaron estados vacíos reales (antes no podían no-existir, con mock siempre había algo) — probado con dos sesiones de prueba: una con datos (4 registros de prueba a nombre de Belen Recalde, incluida actividad real de sync con Plane) y una sin ningún dato (usuario nuevo). `lib/mock-mi-sgc.ts` eliminado. `tsc --noEmit`, `npm run lint` y `npm run build` sin errores. Entorno de prueba limpiado (dev-login, playwright, y el usuario de prueba `otro.usuario@avenida.com` creado solo para probar el estado vacío).
+
+## ⚠️ Bug real (2do, distinto del anterior): el logo del pie del sidebar se veía estirado (2026-09-08)
+
+El usuario había confirmado el fix de altura del sidebar como resuelto, pero avisó de nuevo: *"el logo de Avenida sigue viendose mal"*. No era el mismo bug — inspeccioné el DOM real con Playwright (`getComputedStyle`, `naturalWidth/Height`, `clientWidth/Height`) en vez de asumir, y encontré la causa real: el `<Image>` del logo (`components/layout/sidebar.tsx`) vive dentro de un contenedor `flex flex-col` (el pie del sidebar) sin `items-start` — por default, un item dentro de un flex column se estira (`align-self: stretch`) en el eje cruzado, que en `flex-col` es el ancho. La clase `w-auto` no alcanza para evitar ese stretch (compite con el comportamiento por defecto del flex item, no lo gana). Resultado medido: el `<img>` terminaba con `width: 247px` (el ancho completo del contenedor) y `height: 16px` fijo por `h-4` — un `object-fit: fill` (default de `<img>`) estiraba el bitmap real para llenar esa caja totalmente desproporcionada (ratio 15.4:1 en vez del 3.5:1 real de `avenida-logo.png`), deformando el wordmark.
+
+**Corregido**: se agregó `self-start` a la clase del `<Image>` (evita el stretch del flex item) y se corrigieron los `width`/`height` del componente (100×26 → 140×40, para que coincidan con el aspect ratio real del archivo `avenida-logo.png`, 1136×323 ≈ 3.517 — antes usaba una proporción inventada, 3.846, que sumaba una distorsión adicional aunque menor). Verificado con Playwright: `clientWidth` pasó de 247px a 56px (ratio 3.51, coincide con el archivo real). El otro uso de este logo (`app/page.tsx`, dentro de un flex *row* con `items-center` explícito) no tenía este problema — el stretch de flex-col solo afecta contenedores en columna.
+
+`tsc --noEmit`, `npm run lint` y `npm run build` sin errores. Entorno de prueba limpiado.
+
+## Autorización fina por rol (2026-09-09)
+
+Recorte deliberado de la fase de autenticación, retomado a pedido del usuario ("Autorización fina por rol" entre las opciones ofrecidas). Hasta acá `requireRole` solo gateaba pantallas completas (Configuración → Usuarios); esto agrega el segundo nivel: qué fila de datos ve o edita cada rol dentro de una misma pantalla. Modelo confirmado con el usuario por preguntas directas (no asumido):
+
+- **`admin` / `calidad`**: ven y editan todo, sin filtrar por área.
+- **`responsable_area`**: solo ve/edita los registros, riesgos, objetivos e indicadores de **su** área (`users.area_id`) — el resto de la empresa no aparece en sus listados.
+- **`consulta`**: igual que `responsable_area` (acotado a su área) pero sin poder editar nada — ni formularios de edición ni la pantalla de alta ("nuevo").
+- **`colaborador`**: no navega el Registro de Gestión / Riesgos / Objetivos / Indicadores / Tickets Plane — solo "Mi SGC" y "Reportar". Sí puede ver el detalle de un registro puntual si es quien lo reportó o el responsable de su corrección/verificación (para que los links desde Mi SGC funcionen), pero en modo solo-lectura.
+
+**Nuevo módulo central: `lib/auth/access.ts`** — `hasFullAreaAccess`, `isReadOnlyRole`, `canBrowseGestion`, `canAccessTicketsPlane` (Tickets Plane es una cola de trabajo, ahí ni `consulta` entra), `canViewAreaScoped`/`canEditAreaScoped`/`filterByAreaAccess` (genéricos sobre cualquier entidad con `area_id`), `isRecordOwner`/`canViewRecord` (el caso especial de colaborador dueño de un registro), y los helpers de página `requireGestionAccess`/`requireCreateAccess`/`requireTicketsPlaneAccess`/`requireEditAccess`.
+
+**Aplicado en todo el árbol de gestión** (listado + detalle + alta + Server Actions, gateo doble en página y en la Server Action — mismo criterio ya establecido en el proyecto de no confiar solo en el gateo de la pantalla):
+- Registro SGC (`lib/actions/gestion.ts`, todas las acciones de análisis/verificación/cierre/evidencias/relaciones/vencimiento).
+- Riesgos y Oportunidades (`lib/actions/risks.ts`) — de paso, un Responsable de Área que crea un riesgo nuevo tiene su área forzada server-side (se ignora lo que mande el form).
+- Objetivos de Calidad e Indicadores (`lib/actions/objectives.ts`, `lib/actions/indicators.ts`) — mismo criterio de área forzada al crear.
+- Tickets Plane (`lib/actions/plane-tickets.ts`, `lib/plane/tickets.ts` ahora acepta un filtro `onlyAreaId`) — un Responsable de Área solo ve/tipifica tickets de proyectos mapeados a su propia área.
+
+**UI de solo-lectura**: los tabs de gestión (`analisis-tab`, `verificacion-tab`, `evidencias-tab`, `relaciones-tab` para registros; `controles-tab`, `riesgo-relaciones-tab` para riesgos) ocultan directamente el formulario cuando `canEdit` es falso, mostrando los valores ya guardados como texto. Los tabs con un único formulario grande (`tratamiento-tab`, la sección residual de `valoracion-tab`, `resumen-tab` de objetivos e indicadores) usan en cambio `<fieldset disabled>` — deshabilita todos los campos de un saque sin duplicar el layout — con estilos `disabled:` explícitos (fondo gris) y una nota "Solo lectura" donde iría el botón de guardar, para que quede visualmente claro que no es editable (antes de agregar el estilo, un campo deshabilitado se veía idéntico a uno editable — encontrado durante la verificación, no obvio a simple vista).
+
+**Nav filtrado por rol**: `HeaderUser` ahora lleva `role` (antes solo `roleLabel`), pasado a `Sidebar`/`MobileSidebar`. Un `colaborador` no ve en el menú "Registro SGC", "Tickets Plane", "Riesgos y oportunidades", "Objetivos de Calidad" ni "Indicadores" — las pantallas "glosario" del mismo menú (No Conformidades, Contexto, etc.) siguen visibles, son solo informativas.
+
+**Verificado con usuarios de prueba reales** (creados y borrados en la misma pasada, vía SQL directo + Playwright + `dev-login`, nunca en producción): un Responsable de Área de "Administración" solo vio 1 de 4 registros del Registro SGC (el de su área) y fue redirigido a Mi SGC al intentar entrar a un riesgo de otra área por URL directa; un `consulta` de "Operaciones" vio el riesgo de su área pero sin ningún campo editable ni botón de guardar, y fue redirigido al intentar entrar a "Registrar riesgo u oportunidad" (bug real encontrado y corregido en el momento: la pantalla "nuevo" solo chequeaba `canBrowseGestion`, no `isReadOnlyRole` — nuevo helper `requireCreateAccess`); un `colaborador` no vio los ítems restringidos en el menú, fue redirigido a Mi SGC al navegar `/gestion-calidad/registro` directamente, pero pudo reportar una situación nueva y ver el detalle de ESE registro (en modo lectura) apenas creado — y fue redirigido al intentar ver un registro ajeno.
+
+`tsc --noEmit`, `npm run lint` y `npm run build` sin errores. Entorno de prueba limpiado (usuarios y registro de prueba borrados de la base, dev-login desactivado, playwright desinstalado).
+
+**Fuera de alcance de esta pasada** (no se tocó, documentado por si se retoma): Configuración → Áreas/Tipos/Plane siguen sin `requireRole`, accesibles a cualquier usuario logueado — es un gap preexistente a esta fase, no forma parte de "gestión de registros" y no se tocó para no ampliar el alcance de lo pedido.
+
+## Glosario de Conceptos actualizado con el Diccionario Corporativo oficial (2026-09-09)
+
+El usuario compartió el **"Diccionario Corporativo de Términos del Sistema de Gestión"** (v0, 27/08/2026, aprobado por Violeta Martinez — .docx, extraído a texto plano vía unzip + parseo de `word/document.xml`, ya que el contenido no es legible como binario directo). A diferencia del contenido de `lib/concepts-data.ts` hasta ahora (redactado en lenguaje propio, marcado "Borrador — a revisar por Calidad"), este es un documento ya oficial y aprobado — cambia la naturaleza del contenido de "borrador propio" a "fuente autoritativa de la empresa".
+
+Se cruzaron los ~55 términos del diccionario contra los 46 conceptos ya existentes:
+- **16 coincidencias** (No Conformidad, Acción Correctiva, Corrección, Causa raíz, Evidencia, Hallazgo, Información documentada, Mejora continua, Oportunidad, Procedimiento, Proceso, Requisito, Riesgo, Trazabilidad, Verificación, Auditoría) — se reemplazó `technicalDefinition` por el texto oficial del diccionario tal cual, dejando `simpleDefinition`/`avenidaExample`/`whyItMatters`/`whatToDoIfDetected` en el lenguaje propio ya existente (se revisó que no quedaran contradicciones).
+- **41 términos nuevos**, agregados con la misma estructura de 6 campos que el resto del glosario. Varios son propios de Diseño y Desarrollo de software (Deploy, Bug, Peer Review, UAT, UX, UI, Diseño técnico/funcional, Requisito funcional, etc.) — se agregó una categoría nueva, **`diseno-y-desarrollo`**, porque ninguna de las 11 categorías existentes las representaba bien.
+- Los términos propios del SGC de Avenida+ que no están en el diccionario corporativo (Oportunidad de Mejora, Reclamo, Queja, Sugerencia, SLA, Política de Calidad, etc.) se dejaron sin tocar — el diccionario no los contradice, simplemente no los define.
+
+**Se sacó el badge "Borrador — contenido a revisar por Calidad"** de las dos pantallas de Conceptos (lista y detalle) — el resto del Centro de Conocimiento (ISO 9001, Calidad en 2 minutos, Comparador, FAQ) sigue con el badge, a pedido explícito del usuario ("Dejamelas y las reviso y te las paso correctamente" — las va a revisar aparte).
+
+Verificado: sin ids duplicados ni `relatedIds` colgantes (87 conceptos, todos sus enlaces resuelven), captura de la lista (con el filtro por categoría incluyendo "Diseño y Desarrollo") y de dos detalles (uno actualizado con la definición oficial, uno nuevo) sin el badge de borrador. `tsc --noEmit`, `npm run lint` y `npm run build` sin errores. Entorno de prueba limpiado.
+
+## Comparador de conceptos: 8 pares nuevos del diccionario oficial (2026-09-09)
+
+El usuario confirmó que el Comparador está bien como pantalla y pidió revisar si el diccionario corporativo tenía más pares para sumar. La sección "5. Diferencias entre términos que requieren especial atención" del documento tenía 9 sub-secciones; 2 ya estaban cubiertas (Corrección vs. Acción Correctiva, Hallazgo vs. No Conformidad) y las 7 restantes se agregaron a `lib/comparisons-data.ts` (dos de ellas eran comparaciones de tres términos — Revisión vs. Verificación vs. Validación, y Procedimiento vs. Instructivo vs. Registro — se partieron en pares para encajar en el formato A/B existente, resultando en 8 entradas nuevas):
+
+- Observación vs. No Conformidad
+- Corrección vs. Contención
+- Mejora vs. Acción Correctiva
+- Revisión vs. Verificación
+- Verificación vs. Validación
+- Procedimiento vs. Instructivo
+- Evidencia objetiva vs. Registro
+- Desvío vs. No Conformidad
+
+El badge "Borrador" de esta pantalla **no se tocó** — a diferencia de Conceptos, el Comparador sigue mezclando pares propios (no en el diccionario oficial, ej. NC vs. OM, Queja vs. Reclamo) con los nuevos oficiales, y el usuario dijo que la va a revisar aparte junto con ISO 9001/Calidad en 2 minutos/FAQ.
+
+Verificado visualmente (20 tarjetas en total, mismo formato), `tsc --noEmit`, `npm run lint` y `npm run build` sin errores. Entorno de prueba limpiado.
+
+## FAQ: 6 preguntas nuevas + Comparador confirmado sin borrador (2026-09-09)
+
+El usuario pidió ideas para nuevas preguntas frecuentes dado todo lo construido esta sesión (roles, Mi SGC real, Plane) que la FAQ todavía no cubría. Se propusieron 10 candidatas y el usuario eligió 6 para cargar:
+
+- Por qué Mi SGC puede aparecer vacío (cruce por nombre, mismo límite documentado en `lib/mi-sgc-data.ts`).
+- Qué significa "vencido" en Mis vencimientos.
+- Por qué no se puede cerrar una AC sin verificación de eficacia (el bloqueo de cierre de la Fase 7).
+- Que Plane y el portal no son lo mismo (ejecución vs. cumplimiento).
+- Por qué un ticket en "Tickets Plane" no aparece en Mi SGC hasta que se tipifica.
+- Qué pasa si se reporta lo mismo dos veces (se vincula, no se duplica el histórico).
+
+Además, el usuario confirmó que el Comparador de conceptos ya está a su gusto — se le sacó el badge "Borrador" (a diferencia de la sesión anterior, donde se había dejado a propósito porque todavía mezclaba contenido propio con el oficial; el usuario decidió que así está bien). **Preguntas frecuentes, ISO 9001 y Calidad en 2 minutos siguen con el badge** — pendientes de que el usuario las revise aparte.
+
+Verificado visualmente (18 preguntas en FAQ, Comparador sin badge), `tsc --noEmit`, `npm run lint` y `npm run build` sin errores. Entorno de prueba limpiado.
+
+**Actualización en el mismo día**: el usuario confirmó también la FAQ como contenido definitivo — se le sacó el badge "Borrador" (y el import de `Badge`, que quedó sin otro uso en la página). Solo quedan con el badge **ISO 9001** y **Calidad en 2 minutos**.
+
+## Foto del equipo en el Home — subida real desde Configuración (2026-09-09)
+
+El usuario preguntó por qué no podía cargar una imagen en el cartel "Espacio para una foto del equipo Avenida+" del Home — respuesta: era un cartel puramente visual (`components/home/hero.tsx`), sin ningún botón ni lógica de carga detrás. Eligió que se construya una pantalla real de carga (no solo cargar un archivo fijo a mano), reutilizable a futuro.
+
+**Almacenamiento**: nueva tabla genérica `site_settings` (clave/valor) en `lib/db/client.ts`/`queries.ts` — pensada para cualquier configuración global futura, no solo esta foto. Los archivos en sí se guardan en el filesystem, en `data/uploads/` (`lib/uploads.ts`, junto a `agora.db`, mismo criterio de "necesita un host con filesystem persistente" ya asumido por el proyecto) — a propósito NO en `public/`, para no mezclar contenido subido en tiempo de ejecución con los assets del build. Cada subida genera un nombre de archivo con timestamp (nunca se reutiliza un nombre), lo que permite cachear las respuestas como inmutables sin riesgo de servir una versión vieja.
+
+**Servido**: `app/api/uploads/[filename]/route.ts`, valida el nombre contra un patrón fijo (`^[a-z0-9-]+\.(jpg|jpeg|png|webp)$`) antes de leer del disco — sin eso, sería una ruta de path traversal.
+
+**⚠️ Decisión no obvia — por qué `<img>` y no `next/image` para esta foto**: la ruta que sirve el archivo vive detrás de `proxy.ts` (exige sesión, como todo el portal). El optimizador de `next/image` resuelve una URL local haciendo su propio fetch server-side, que no lleva la cookie de sesión del navegador — con `next/image` la imagen rompía. Un `<img>` normal sí funciona porque el navegador arma la petición con su propia cookie. Documentado en el código (`components/home/hero.tsx` y `app/configuracion/inicio/page.tsx`) para que no se "corrija" por error a `next/image` en el futuro.
+
+**Pantalla nueva**: Configuración → Página de inicio (`app/configuracion/inicio/page.tsx`, ítem de nav nuevo, gateada `requireRole(["admin"])`) — subir (JPG/PNG/WEBP, máx. 5 MB) o quitar la foto, con vista previa. Cada subida nueva borra el archivo anterior del disco (`lib/actions/site-settings.ts`) para no acumular basura.
+
+**`components/home/hero.tsx`** ahora recibe `photoUrl: string | null` — si hay foto cargada la muestra, si no, sigue mostrando el cartel original sin cambios.
+
+Verificado de punta a punta con Playwright + `dev-login`: subida real de un archivo, confirmado que `/api/uploads/<archivo>` responde `200` con el `Content-Type` correcto, la foto aparece en el Home, y "Quitar la foto" la saca y vuelve al cartel — con eso se dejó todo en el estado original (sin foto) al terminar, no se subió ninguna foto real de prueba a producción. `tsc --noEmit`, `npm run lint` y `npm run build` sin errores (rutas nuevas `/api/uploads/[filename]` y `/configuracion/inicio` confirmadas en el build). Entorno de prueba limpiado.
+
+## Las 7 pantallas "por tipo" de Gestión de Calidad dejan de ser placeholders (2026-09-09)
+
+El usuario pidió "configurar" No Conformidades, Acciones Correctivas, Acciones Preventivas, Oportunidades de Mejora, Quejas, Sugerencias y Reclamos — hasta ahora eran `PlaceholderPage` sin datos reales (solo `/gestion-calidad/registro` mostraba el listado real, con todos los tipos mezclados y un filtro). Se resolvió reutilizando esa misma tabla, pre-filtrada a un solo tipo, en vez de duplicar lógica:
+
+- **`lib/gestion-tipo.ts`** (nuevo, server-only): `loadTipoRegistroData(typeCode)` — mismo gateo de autorización que `/gestion-calidad/registro` (`requireGestionAccess` + `filterByAreaAccess`), filtrado además por el `type_id` correspondiente al código pedido.
+- **`components/gestion-calidad/tipo-registro-view.tsx`** (nuevo): la misma cabecera + `RegistroTable` que ya usaba el Registro SGC general, reutilizada.
+- **`components/gestion-calidad/registro-table.tsx`**: nuevo prop `hideTypeFilter` — en una pantalla ya filtrada a un solo tipo, mostrar el selector y la columna "Tipo" es redundante (siempre iba a ser el mismo valor); se ocultan cuando corresponde.
+- Los 7 `app/gestion-calidad/<tipo>/page.tsx` pasaron de `PlaceholderPage` a `async function Page()` que llama `loadTipoRegistroData("<CÓDIGO>")` y renderiza `TipoRegistroView` — cada archivo quedó en ~20 líneas, sin duplicar la lógica de datos ni de tabla.
+
+**Nota de arquitectura (por qué no un componente async como hijo directo)**: se evitó a propósito anidar un componente Server Component async (`<TipoRegistroView>` async) dentro de otro para no depender de un patrón de React Server Components no probado en este proyecto (que ya tuvo más de un problema puntual con Turbopack/Next 16) — en cambio, cada `page.tsx` sigue siendo el único límite async, igual que el resto del proyecto, y `TipoRegistroView` es un componente de presentación 100% síncrono que recibe los datos ya resueltos por props.
+
+Verificado con Playwright + `dev-login`: No Conformidades mostró exactamente los 2 registros NC reales existentes, Reclamos mostró el único R real, Quejas mostró el estado vacío correcto (0 registros Q). De paso se encontró y limpió un registro de prueba (`NC-2026-002`, "COLAB TEST ACCESO") que había quedado sin borrar de una verificación de autorización por rol de una sesión anterior — no se había notado porque no existía ninguna pantalla que mostrara solo NC hasta ahora. `tsc --noEmit`, `npm run lint` y `npm run build` sin errores. Entorno de prueba limpiado.
+
+## Campana de notificaciones real (2026-09-09)
+
+El usuario notó que la campana del header no mostraba nada al tocarla — era otro mock puro (`MOCK_UNREAD_NOTIFICATIONS = 3` hardcodeado, botón sin `onClick`, documentado como pendiente desde varias fases atrás). Se le preguntó si quería una versión real básica o sacar el número falso; eligió la versión real.
+
+**Diseño elegido — sin tabla de notificaciones propia**: se reutiliza `activity_log` filtrado a lo relevante para cada usuario (mismo criterio que "Mi SGC" → Últimos movimientos: reportante o responsable de corrección/verificación de un registro — `isRecordOwner()`, ya existente en `lib/auth/access.ts`, reutilizado tal cual). Para el estado leído/no-leído, en vez de trackear cada ítem por separado, se agregó una sola columna `users.notifications_last_seen_at` — todo evento posterior a esa fecha cuenta como no leído; abrir la campana marca todo como visto de una vez (no hay "marcar como leído" ítem por ítem, alcanza para una versión básica).
+
+- **`lib/notifications-data.ts`** (nuevo, server-only): `getNotificationsForUser()`, `countUnreadNotifications()`.
+- **`lib/actions/notifications.ts`**: `markNotificationsSeenAction()`.
+- **`app/layout.tsx`**: calcula las notificaciones del usuario actual y las pasa a `AppShell` → `Header`, mismo patrón ya usado para `HeaderUser`.
+- **`components/layout/header.tsx`**: la campana pasó de `<button>` sin acción a un dropdown real (mismo patrón visual que el menú de usuario ya existente) — al abrirla, si hay no leídas, llama a la Server Action y hace `router.refresh()` para reflejar el contador real actualizado en el resto del layout.
+
+Verificado con Playwright + `dev-login`: un usuario con actividad real vio el contador correcto (6), el dropdown con el texto/tiempo de cada evento, y tras recargar el badge desapareció (quedaron marcadas como leídas); un usuario nuevo sin actividad vio el estado vacío correcto. `tsc --noEmit`, `npm run lint` y `npm run build` sin errores.
+
+**Nota**: durante esta verificación se detectó que el usuario ya había subido una foto real al Home (Configuración → Página de inicio, la función de la sección anterior) — no se tocó, es contenido real del usuario, no un artefacto de prueba. Entorno de prueba limpiado (solo el usuario de prueba creado para este test, `dev-login`, playwright).
+
+## Ajustes en "Reportar" (2026-09-09)
+
+Dos ajustes puntuales pedidos por el usuario en `components/home/report-category-picker.tsx` (pantalla `/reportar`):
+
+1. Cada tarjeta de categoría ahora muestra el código de tipo sugerido entre paréntesis junto al título (ej. "Algo no salió como debía (NC)", "Tengo una idea para mejorar algo (OM, S)") — usa el mismo `suggestedTypes` de `lib/report-categories.ts` que ya existía, filtrado a los códigos reales (`VALID_TYPE_CODES`, ya definido en el archivo) para no mostrar "Riesgo" como si fuera un tipo de registro.
+2. El texto fijo "La creación del ticket en Plane se conecta en la **Fase 4**" — lenguaje interno de fases de desarrollo, sin sentido para quien usa el portal, y además desactualizado (Plane ya está conectado, no es una promesa a futuro) — se reemplazó por "Si tu área tiene un proyecto de Plane conectado, el ticket se crea ahí automáticamente", que describe el comportamiento real y condicional (depende de si el área tiene mapeo en Configuración → Plane).
+
+Verificado visualmente: las 7 tarjetas muestran su código correctamente (una de ellas, "Otro", sin código, correcto). `tsc --noEmit`, `npm run lint` y `npm run build` sin errores. Entorno de prueba limpiado.
+
+## Unificación de pantallas-glosario duplicadas (2026-09-09)
+
+El usuario notó que "Contexto" y "Partes interesadas" (y por separado "Mapa de procesos" y "Fichas de procesos") decían lo mismo en pantallas distintas — correcto: las 4 son `GlossaryPage` (contenido excluido de Ágora por ser gestión interna de Calidad, Fases 9/10), y ese componente repite el mismo bloque fijo ("Esta gestión la lleva Calidad puertas adentro…", "¿Detectaste algo relacionado?") en cada una — con tan poco contenido propio por pantalla (título, descripción y 2-3 conceptos), dos pantallas del mismo tipo se leen como si dijeran lo mismo.
+
+Se fusionaron en una sola pantalla por par, combinando `conceptIds` (sin duplicar los que se repetían):
+- **Planificación**: "Contexto" + "Partes interesadas" → **`/planificacion/contexto`**, ahora titulada "Contexto y partes interesadas" (`conceptIds`: contexto-de-la-organización, parte-interesada, riesgo, cambio, satisfacción-del-cliente).
+- **Procesos**: "Mapa de procesos" + "Fichas de procesos" → **`/procesos/mapa`**, ahora titulada solo "Procesos" (`conceptIds`: proceso, procedimiento, control-operacional, indicador).
+
+Se borraron `app/planificacion/partes-interesadas/` y `app/procesos/fichas/` (confirmado sin ninguna otra referencia colgante en el código — solo `lib/nav-data.json` apuntaba a esas rutas, ya actualizado). La sección "Procesos" del menú quedó con un solo ítem hijo — se dejó así a propósito (no se reestructuró el sistema de nav para este caso puntual).
+
+Verificado con Playwright: las rutas viejas devuelven `404`, las 2 páginas sobrevivientes muestran el contenido combinado sin duplicar conceptos, el nav se ve bien colapsado/expandido. `tsc --noEmit`, `npm run lint` y `npm run build` sin errores (confirmando además que las 2 rutas viejas ya no aparecen en el build). Entorno de prueba limpiado.
+
+## "Satisfacción" y "Seguimiento": de placeholders con texto de fase obsoleto a pantallas reales (2026-09-09)
+
+El usuario notó que estas dos pantallas de Evaluación decían "se implementa en la Fase 13/14" — un problema más de fondo que solo el texto: esos números de fase ya no correspondían a nada (Fase 13 real = Auditorías, ya excluida; Fase 14 real = Dashboard Ejecutivo, ya hecho) porque nunca se habían vuelto a mirar desde el recorte de alcance del 2026-09-07. Se le preguntó al usuario si cada una iba como pantalla real o quedaba excluida (glosario) — eligió pantalla real para las dos.
+
+**Satisfacción** (`app/evaluacion/satisfaccion/page.tsx`, nuevo): resultados de satisfacción del cliente por período (puntaje + unidad libre — %, NPS, /10 — + encuestados + notas opcionales), con gráfico de evolución (reutiliza `TrendChart`, ya usado en Objetivos/Indicadores) y lista de Quejas/Reclamos recientes del Registro SGC como contexto. Tabla nueva `sgc_satisfaction_results` (clave/valor por período, sin entidad padre — a diferencia de los resultados de indicadores/objetivos, que cuelgan de un indicador/objetivo puntual, acá no hace falta). Mismo patrón de autorización que el resto de Evaluación: `requireGestionAccess` para ver, `isReadOnlyRole` para bloquear la carga a `consulta`, área forzada server-side si el rol es `responsable_area`.
+
+**Seguimiento** (`app/evaluacion/seguimiento/page.tsx`, `lib/seguimiento-data.ts`, `components/evaluacion/seguimiento-table.tsx`, todos nuevos): vista detallada y filtrable (buscador + área + vencidos/próximos) de todo lo abierto con vencimiento — a diferencia del resumen del Home (Fase 14, que ya cubre "Vencimientos próximos" y "Evolución mensual" pero recortado a los primeros ítems), esta pantalla no tiene límite y suma dos cosas que el Home no tenía:
+- **Reincidencias**: procesos con más de una No Conformidad registrada (agrupando por `process_name` de los registros NC) — la definición más simple y verificable con los datos que ya existen, sin inventar un campo nuevo de "es reincidente".
+- **Cumplimiento por área**: % de registros cerrados sobre el total, por área, con `BarChart` (mismo componente del Home).
+
+Se decidió deliberadamente NO tocar `lib/dashboard-data.ts` (usado por el Home) para no arriesgar romper algo ya probado — `lib/seguimiento-data.ts` es un módulo aparte, autocontenido, que sí aplica `filterByAreaAccess` (el Home hoy no filtra por área/rol, queda documentado como una diferencia a resolver si se pide más adelante).
+
+Verificado de punta a punta con Playwright + `dev-login`: se cargaron temporalmente vencimientos de prueba sobre registros ya existentes para confirmar los badges "Vencido hace N días"/"En N días" y el filtro por estado, y se cargó un resultado real de satisfacción para confirmar el gráfico y la tabla — todo revertido al terminar (los registros de prueba volvieron a su estado original sin vencimiento, el resultado de satisfacción de prueba se borró). `tsc --noEmit`, `npm run lint` y `npm run build` sin errores.
+
+## "Calidad en 2 minutos" confirmada sin borrador (2026-09-09)
+
+El usuario confirmó esta pantalla como contenido definitivo — se le sacó el badge "Borrador" (y el import de `Badge`, sin otro uso en la página). Solo queda con el badge **ISO 9001**.
+
+`tsc --noEmit`, `npm run lint` y `npm run build` sin errores.
+
+## ISO 9001 ("Entendiendo nuestro SGC"): contenido corregido contra lo que existe hoy en el portal (2026-09-09)
+
+El usuario pidió revisar esta pantalla — la última con badge "Borrador" — contra la funcionalidad real actual. Se encontraron 3 problemas en el campo "¿Qué puedo hacer desde el portal?" (`lib/iso-map-data.ts`), todos por no haberse vuelto a mirar desde cambios de fases anteriores:
+
+- **Bloque "Apoyo"**: decía "Consultar instructivos y documentos en Documentación e Instructivos" — falso, `app/documentacion/*` son las 4 páginas de glosario (`GlossaryPage`), no funcionalidad real; el control documental lo lleva Calidad puertas adentro. Corregido para apuntar al Centro de Conocimiento (que sí es real) y aclarar explícitamente que Documentación es gestión interna de Calidad.
+- **Bloque "Evaluación del desempeño"**: decía "...Indicadores, Auditorías y Satisfacción" — Auditorías también es solo glosario (`app/evaluacion/auditorias`). Corregido a "Indicadores, Satisfacción y Seguimiento" (las 2 pantallas reales nuevas de esta sesión), con la misma aclaración sobre Auditorías.
+- **Bloques "Contexto" y "Operación"**: seguían mencionando las pantallas separadas "Contexto y Partes interesadas" / "Mapa de procesos y ficha de proceso" que se fusionaron en la sesión anterior. Actualizados a los nombres/rutas fusionados actuales.
+- **Bloque "Liderazgo"**: `supportingDocuments` tenía una referencia obsoleta a "(Documentación, Fase 12)" — quitada, mismo patrón de lenguaje de fase que ya se había limpiado en Reportar.
+
+Los bloques "Planificación" y "Mejora" ya eran precisos, no se tocaron.
+
+Verificado con Playwright + `dev-login`: capturada la página completa, los 7 bloques (Contexto, Liderazgo, Planificación, Apoyo, Operación, Evaluación del desempeño, Mejora) renderizan el texto corregido sin problemas de layout. `tsc --noEmit`, `npm run lint` y `npm run build` sin errores. Entorno de prueba limpiado (`.env.local` con `ENABLE_DEV_LOGIN=false`, playwright desinstalado, servidor reiniciado limpio).
+
+El usuario confirmó el contenido corregido (2026-09-09) — se sacó el badge "Borrador" (y el import de `Badge`, sin otro uso en la página). Con esto, **las 5 páginas de Centro de Conocimiento quedan sin badge de borrador** (Conceptos, Comparador, FAQ, Calidad en 2 minutos, ISO 9001) — todas confirmadas por el usuario a lo largo de esta sesión.
+
+`tsc --noEmit` y `npm run lint` sin errores.
+
+## Limpieza de badges "Fase N" en Configuración y Registro SGC (2026-09-09)
+
+El usuario notó que Configuración todavía tenía pantallas con badges violeta "Se implementa en Fase X" — quedaron colgados de antes del recorte de alcance, sin revisarse desde entonces. Se sacó el prop `phase` (y el badge que dispara) de las 5 pantallas placeholder que faltan construir: **Integraciones**, **Procesos**, **Roles**, **Apps Script**, **Estados** (`app/configuracion/{integraciones,procesos,roles,apps-script,estados}/page.tsx`) — quedan con el mensaje honesto y genérico de `PlaceholderPage` ("Esta sección todavía no tiene funcionalidad conectada."), sin un número de fase interno que ya no correspondía a nada real. Se limpiaron también los campos `"phase"` correspondientes en `lib/nav-data.json` (confirmado que ese campo no se renderiza en ningún lado de la UI — era metadata muerta).
+
+De paso se corrigió la descripción de **Roles**, que sonaba a que el rol de una persona todavía no se podía asignar — hoy sí se puede, desde Configuración → Usuarios (hecho en la fase de autenticación real). El texto ahora aclara que esta pantalla pendiente es para permisos granulares dentro de cada rol, no para la asignación básica.
+
+También se encontró y corrigió un badge con el mismo problema pero fuera de Configuración: en **Registro SGC** (`app/gestion-calidad/registro/page.tsx`) decía "el análisis de causa, la Acción Correctiva y la verificación de eficacia se habilitan en la Fase 7" — falso, esas 3 cosas ya son tabs reales y funcionales en el detalle de cada registro (`components/gestion-calidad/analisis-tab.tsx`, `verificacion-tab.tsx`). Se sacó esa frase, el badge ahora solo muestra la cantidad de registros.
+
+Verificado con Playwright + `dev-login`: capturadas las 5 pantallas de Configuración (sin badge de fase, texto genérico visible) y Registro SGC (badge solo con el conteo). `tsc --noEmit` y `npm run lint` sin errores. Entorno de prueba limpiado.
+
+## "Roles" y "Estados" pasan a ser reales, y se corrige un hueco de autorización real (2026-09-09)
+
+El usuario pidió dejar "Roles" configurado con los roles ya definidos, y preguntó qué podían ser los "Estados". Al investigar Estados apareció algo más de fondo que una pantalla de referencia: **de los 7 tipos de registro, solo Acciones Correctivas, Riesgos/Oportunidades y Objetivos tenían un control real en el portal para cambiar su estado** — No Conformidad, Acción Preventiva, Oportunidad de Mejora, Queja, Sugerencia y Reclamo ya tenían su flujo de estados definido en código (`GENERIC_STATUS_FLOW` en `lib/db/queries.ts`: Recibido → En análisis → En curso → Resuelto → Cerrado/Rechazado) pero ningún formulario los usaba — quedaban pegados en "Recibido" para siempre. Se le presentó la situación al usuario con dos opciones (solo documentar, o documentar + arreglar el hueco) y eligió la segunda.
+
+**Roles** (`app/configuracion/roles/page.tsx`, reescrita): pantalla de referencia real con los 5 roles (`lib/auth/roles.ts`) y, por cada uno, qué datos ve, qué puede editar, qué pantallas de Gestión navega y qué parte de Configuración puede tocar — contenido tomado directo de la lógica real de autorización (`lib/auth/access.ts`), no inventado. Aclara que el rol se asigna desde Configuración → Usuarios.
+
+**Estados** (`app/configuracion/estados/page.tsx`, reescrita): pantalla de referencia con los 5 flujos de estado reales que ya existían en código pero nunca se habían mostrado juntos: flujo general (6 tipos), Acciones Correctivas, Riesgos, Oportunidades y Objetivos — cada uno con sus estados posibles y su regla de cierre (cuáles bloquean el cierre sin verificación/valoración residual, y cuáles no).
+
+**El hueco real, arreglado**: se agregó una tarjeta "Estado y cierre" a la pestaña Resumen del detalle de un registro (`app/gestion-calidad/registro/[code]/page.tsx`) para todo tipo que no sea AC (que ya tiene su propio selector en la pestaña Verificación) — reutiliza `cambiarEstadoAction` (ya existía y es genérica, no hubo que tocarla) con las opciones de `GENERIC_STATUS_FLOW`. Con esto, No Conformidad, Acción Preventiva, Oportunidad de Mejora, Queja, Sugerencia y Reclamo ya se pueden mover por su flujo completo desde el portal.
+
+**Hueco de autorización encontrado y cerrado de paso**: revisando qué rol podía tocar cada pantalla de Configuración se confirmó que, salvo Usuarios y Página de inicio (gateadas a `admin` con `requireRole`), el resto (Áreas, Tipos, Estados, Plane, Procesos, Roles, Apps Script, Integraciones, Logs) no tenía ningún chequeo de rol propio — solo el optimista de `proxy.ts` (¿hay sesión?). Cualquier persona logueada, incluso Colaborador, podía entrar por URL directa y, en varias, editar datos globales (desactivar áreas, crear tipos, tocar el mapeo de Plane). Se cerró con `app/configuracion/layout.tsx` (nuevo), que aplica `requireRole(["admin", "calidad"])` a todo `/configuracion/*` de una vez — los `requireRole(["admin"])` puntuales de Usuarios y Página de inicio se mantienen arriba de esto, para el subconjunto que ni Calidad debería tocar. También se ocultó la sección "Configuración" del menú lateral para el resto de los roles (`components/layout/sidebar.tsx`, `visibleSections`), ya que ahora cualquier pantalla de ahí adentro los redirige a "/".
+
+Verificado con Playwright + `dev-login`: capturadas Roles y Estados (contenido completo, sin problemas de layout); en un registro NC real se cambió el estado a "En análisis" y se confirmó el cambio, después se revirtió a "Recibido"; se creó un usuario de prueba sin rol admin/calidad y se confirmó que al entrar a `/configuracion/roles` lo redirige a "/" — después se borró ese usuario de prueba de la base. `tsc --noEmit`, `npm run lint` y `npm run build` sin errores (111 rutas, incluida la nueva `/configuracion` con el layout). Entorno de prueba limpiado.
+
+## "Integraciones" pasa a ser un panel real (2026-09-09)
+
+El usuario notó que Configuración → Integraciones seguía vacía. Se reescribió (`app/configuracion/integraciones/page.tsx`) como un panel resumen con datos reales, no un placeholder nuevo — sin duplicar el detalle que ya tienen sus propias pantallas:
+
+- **Plane**: estado de configuración (`getPlaneConfigStatus()`), cantidad de áreas mapeadas activas sobre el total (`listPlaneProjectMappings()` + `listAreas()`) y la última entrada del log (`listPlaneSyncLogs(1)`), con links a Configuración → Plane y → Logs.
+- **Apps Script (Registro de Gestión en Sheets)**: a diferencia de Plane, esta corre por afuera del portal (en el proyecto de Apps Script vinculado a la planilla del usuario) — no hay forma de leer su estado desde acá, así que la tarjeta lo dice explícitamente en vez de simular números. Aclara que es una integración separada de la de Plane (una sincroniza el portal, la otra la planilla) y linkea a Configuración → Apps Script.
+
+Verificado con Playwright + `dev-login`: la pantalla mostró en vivo "2 de 8" áreas mapeadas y la última entrada real del log. `tsc --noEmit` y `npm run lint` sin errores. Entorno de prueba limpiado.
+
+## Causa raíz con selector múltiple, y escaladas Sugerencia→OM / Queja-Reclamo→NC (2026-09-10)
+
+El usuario pidió tres cosas sobre una captura de un desplegable de causas: que "Causa raíz identificada" (hoy texto libre) tome ese desplegable pudiendo marcar más de una causa en una NC, y que Sugerencia se pueda vincular con una Oportunidad de Mejora, y Queja/Reclamo con una No Conformidad — mismo patrón que ya existía entre NC y Acción Correctiva.
+
+**Causa raíz multi-select** (`components/gestion-calidad/root-cause-select.tsx`, nuevo, `"use client"`): reemplaza el input de texto en `analisis-tab.tsx` por un desplegable con las 13 categorías fijas de la captura (Proceso no definido o incompleto, Incumplimiento del procedimiento, Falta de capacitación/competencia, Error humano operativo, Falla de comunicación, Falla del sistema/herramienta, Datos incorrectos o incompletos, Falla de proveedor externo, Falta de control/seguimiento, Planificación insuficiente, Cambio no gestionado, Requisito externo no identificado, Otro), con checkboxes y las causas elegidas mostradas como chips removibles. Se manda como un único input oculto con las causas separadas por coma — el Server Action (`guardarAnalisisAction`) no necesitó ningún cambio, sigue leyendo `rootCause` como string.
+
+**Escaladas genéricas** (`lib/db/queries.ts`: `createEscalatedRecord`, generaliza el `createCorrectiveActionForRecord` que ya existía — este pasa a ser un caso particular con `targetTypeCode: "AC"`; `lib/actions/gestion.ts`: `crearRegistroEscaladoAction`, análoga a `crearAccionCorrectivaAction` pero con el tipo de destino como campo oculto; `components/gestion-calidad/escalar-tab.tsx`, nuevo): mismo patrón de dos formularios (crear nuevo / vincular uno existente) que ya tenía NC → AC en la pestaña "Análisis y corrección", ahora reutilizable. La mitad de "vincular existente" reutiliza `vincularRegistroAction` (la misma acción genérica de la pestaña Relaciones), no hizo falta una acción nueva para eso. Se agregó una pestaña nueva en el detalle del registro (`app/gestion-calidad/registro/[code]/page.tsx`, `RecordTabKey` ahora incluye `"escalar"`): "Vincular a Oportunidad de Mejora" para Sugerencia, "Vincular a No Conformidad" para Queja y Reclamo.
+
+Verificado con Playwright + `dev-login` + 2 registros de prueba (Sugerencia y Queja creados directo en la base para probar, borrados al terminar junto con sus relaciones y logs, sin tocar ningún dato real): se marcaron 2 causas en NC-2026-001 y se guardaron correctamente (revertido a `NULL` después), se creó una OM nueva desde una Sugerencia de prueba, se vinculó una NC ya existente desde una Queja de prueba (confirmado en la base y visualmente, con "Relaciones (1)" y la tarjeta del registro vinculado). `tsc --noEmit`, `npm run lint` y `npm run build` sin errores.
+
+**Hallazgo de proceso importante**: durante esta verificación se confirmó que Next.js recarga `.env.local` en caliente en modo dev (log `Reload env: .env.local`) — **no hace falta parar y reiniciar el proceso de `next dev` para que un cambio de `ENABLE_DEV_LOGIN` surta efecto**, alcanza con guardar el archivo. Los reinicios manuales de sesiones anteriores eran innecesarios y, peor, muy probablemente la causa del error de "no puedo generar una AC" que reportó el usuario — se confirmó por los logs del servidor que el usuario estaba navegando el portal en vivo en paralelo, y un reinicio del proceso en el momento exacto de un submit corta esa request. De acá en adelante: editar `.env.local` y esperar el log de reload, sin `Stop-Process`/reinicio, salvo que cambie código fuente que sí lo requiera.
+
+## Links a documentos oficiales del SGC en Procesos, Riesgos y Objetivos (2026-09-10)
+
+El usuario pidió agregar el link a 3 documentos reales de Calidad, cada uno con su código de documentación del SGC: el mapa de procesos de la empresa (`AV-CAL-DOC:0003`, Google Slides) en Procesos, el procedimiento de gestión de riesgos y oportunidades (`AV-CAL-PRO:0002`, Google Docs) en Riesgos y Oportunidades, y el documento de Objetivos de Calidad (`AV-CAL-OD:0001`, Google Docs) en Objetivos de Calidad.
+
+**`components/ui/document-reference-card.tsx`** (nuevo): tarjeta reutilizable — badge con el código, nombre del documento, aclaración de que lo mantiene Calidad puertas adentro (mismo criterio que el resto del portal: esto es un atajo al archivo real, no gestión documental formal dentro de Ágora) y un botón "Abrir documento" que abre el link en una pestaña nueva.
+
+Se usó en los 3 lugares con la forma que le correspondía a cada pantalla:
+- **Procesos** (`app/procesos/mapa/page.tsx`, una `GlossaryPage`): se agregó `documentRef` como prop opcional nueva de `GlossaryPage` (`components/layout/glossary-page.tsx`), renderizada entre la descripción y los conceptos — no hizo falta tocar ninguna otra `GlossaryPage`, el prop es opcional.
+- **Riesgos y Oportunidades** y **Objetivos de Calidad** (pantallas con UI propia, no `GlossaryPage`): la tarjeta se insertó directo, entre el párrafo descriptivo y las tarjetas de métricas.
+
+Verificado con Playwright + `dev-login`: las 3 pantallas muestran la tarjeta con el código, nombre y botón correctos; confirmado además por texto que las URLs en el código coinciden exactamente con las que pasó el usuario. `tsc --noEmit` y `npm run lint` sin errores.
+
+**Nota de proceso**: esta verificación fue la primera hecha completamente sin ningún `Stop-Process`/reinicio del servidor — se aprovechó la recarga en caliente de `.env.local` confirmada la sesión anterior (ver `local-dev-port-and-auth-status` en memoria). El servidor de desarrollo no se interrumpió en ningún momento.
+
+## Documentación unificada en "Información documentada", con links a los documentos reales del SGC (2026-09-10)
+
+El usuario pidió agrupar las 4 pantallas de Documentación (Documentos del SGC, Instructivos, Registros, Documentos externos) en una sola vista llamada "Información documentada", regida por el procedimiento `AV-CAL-PRO:0001` y con el registro de todo (documentos internos, externos, registros y control de cambios) en la planilla `AV-CAL-FOR:0001` ("Información_Documentada A+") — ambos documentos reales del repositorio SGC de Avenida+, área de Calidad.
+
+**`app/documentacion/informacion-documentada/page.tsx`** (nuevo, reemplaza a los 4 anteriores): una `GlossaryPage` con la descripción fusionada y los `conceptIds` combinados sin duplicar (`informacion-documentada`, `politica-de-calidad`, `procedimiento`, `evidencia`, `trazabilidad`, `proveedor-externo`) y 2 `documentRefs`: el procedimiento (Google Docs) y la planilla (Google Sheets, con ícono `Sheet` distinto al de documento para diferenciarla visualmente).
+
+Se generalizaron los componentes de la fase anterior (links a documentos, agregados para Procesos/Riesgos/Objetivos) para soportar más de un documento por pantalla:
+- **`components/ui/document-reference-card.tsx`**: ahora exporta el tipo `DocumentRef` y acepta `icon` (opcional, default `FileText`) y `note` (opcional, default el texto genérico de "lo mantiene Calidad puertas adentro") — sin romper los 3 usos existentes.
+- **`components/layout/glossary-page.tsx`**: el prop pasó de `documentRef` (uno) a `documentRefs` (array) — se actualizó el único call site existente (Procesos) para pasar el array con un elemento.
+
+Se borraron `app/documentacion/{documentos,instructivos,registros,externos}/`. `lib/nav-data.json`: los 4 ítems de Documentación se reemplazaron por uno solo (`informacion-documentada`). `app/page.tsx` (Home): las 2 tarjetas de acceso rápido "Instructivos" y "Documentación SGC" se fusionaron en una sola ("Información documentada"), y se sacó el import `BookOpen` que quedó sin uso.
+
+Verificado con Playwright + `dev-login`: las 4 rutas viejas devuelven `404`, la nueva pantalla muestra ambos documentos con sus códigos/links correctos y los 6 conceptos sin duplicar, el Home muestra un solo acceso rápido a Documentación (grilla de 9, no 10). `tsc --noEmit` (tras limpiar `.next`, que tenía tipos generados stale de las rutas borradas — no es un error real, solo hace falta un `next build` para regenerarlos), `npm run lint` y `npm run build` sin errores (107 rutas, confirmando que las 4 viejas ya no están). Entorno de prueba limpiado.
+
+**Nota de proceso**: en este cambio corrí sin querer `next build` (que reescribe `.next` con el formato de producción) mientras el servidor de `next dev` seguía corriendo — no lo tumbó (Turbopack recompiló en caliente sin problema, confirmado por Playwright), pero mezclar ambos modos en el mismo `.next` no es un flujo soportado. Si vuelve a pasar sin querer, más seguro reiniciar `next dev` limpio después en vez de asumir que sigue sano — esta vez se verificó primero con Playwright antes de decidir no reiniciar, y salió bien, pero fue una entrada casual, no el plan.
+
+## Objetivos de Calidad conectados a la planilla real de Google Sheets (2026-09-11)
+
+El usuario pidió sincronizar Objetivos de Calidad con su planilla real ("¿podemos conectar los objetivos a un sheets?"). Se acordó con el usuario: dirección **Portal → Sheets con importación inicial** (cada objetivo creado/editado en el portal escribe su fila en la planilla; lo que ya estaba cargado en la planilla se importa una sola vez al conectar) y autenticación por **cuenta de servicio de Google Cloud** guiada paso a paso. El usuario pasó el ID real de la planilla, el nombre de la pestaña ("Hoja Objetivos de Calidad") y las 25 columnas (A:Y, datos desde la fila 3).
+
+**Sin dependencias nuevas**: igual que Plane (REST a mano, sin SDK), acá tampoco se sumó `googleapis` — la autenticación de cuenta de servicio (JWT Bearer, RFC 7523) se firma con `jose`, que ya es dependencia del proyecto para verificar el login de Google (`lib/auth/google.ts`). Mismo criterio de minimalismo que evitó Prisma y NextAuth en fases anteriores.
+
+- **`lib/google-sheets/client.ts`** (nuevo): `getSheetsConfig()`/`isSheetsConfigured()`/`getSheetsConfigStatus()` (patrón idéntico a `lib/plane/client.ts` — `null` si faltan variables, resto del portal sigue funcionando "apagado, no roto"), `getAccessToken()` (firma el JWT de la cuenta de servicio y lo cambia por un token OAuth2, cacheado en memoria de proceso mientras no venza), `sheetsFetch()` (wrapper único, mismos criterios de error que `planeFetch`), y las 5 operaciones puntuales sobre la planilla (`getSpreadsheetTitle`, `readObjectiveRows`, `appendObjectiveRow`, `updateObjectiveRow`, `updateObjectiveCell`).
+- **`lib/google-sheets/objective-mapping.ts`** (nuevo): el mapeo fijo de las 25 columnas contra los campos del portal, y los parsers tolerantes (`parseSheetDate` — soporta fecha como número de serie de Sheets, que es locale-independiente, y como texto ISO/DD-MM-YYYY; `parseSheetNumber`; `mapSheetStatus`, que si el texto de "Estado" no coincide con ninguno de `OBJECTIVE_STATUS_FLOW` cae a "En curso" y deja el texto original como aviso, en vez de perderlo o romper el import).
+- **`lib/google-sheets/sync.ts`** (nuevo): `importObjectivesFromSheet()` (idempotente — una fila ya importada tiene un objetivo con `sheet_row` apuntándole, correrla de nuevo solo trae filas nuevas), `pushObjectiveToSheetSafe()` y `pushMonthlyResultToSheetSafe()` (nunca lanzan — un problema de Sheets queda en el Historial del objetivo, nunca bloquea el guardado real en el portal).
+- **Schema** (`lib/db/client.ts`, `ensureObjectiveSheetColumns`): 4 columnas nuevas en `sgc_objectives` — `sheet_row`/`sheet_no` (a qué fila de la planilla corresponde), `indicator_text` (columna "Indicador" de la planilla, texto libre — distinto de `indicator_id`, que es una FK real a `sgc_indicators`) y `policy_principle` ("Principio de la Política de Calidad", sin equivalente previo en el portal). Los 12 valores mensuales (Ene..Dic) no necesitaron tabla nueva — se reusa `sgc_objective_results` (ya existía, un resultado por período "YYYY-MM"; el año se resuelve desde `start_date` o el año actual si no hay fecha).
+- **`lib/actions/objectives.ts`**: `crearObjetivoAction`, `guardarObjetivoAction` y `cambiarEstadoObjetivoAction` ahora llaman a `pushObjectiveToSheetSafe` después de guardar; `agregarResultadoObjetivoAction` llama a `pushMonthlyResultToSheetSafe` (escribe solo la celda del mes, no reescribe toda la fila).
+- **`app/configuracion/objetivos-sheets/page.tsx`** + **`lib/actions/objective-sheets.ts`** (nuevos): mismo patrón que Configuración → Plane — estado de las 3 variables de entorno, botón "Probar conexión", botón "Importar desde Sheets" (trae lo que ya había en la planilla). Sin tabla de logs aparte (es una sola planilla, no un mapeo por área): el resultado viaja por query param en el redirect, mismo criterio que `estadoError` en `lib/actions/gestion.ts`.
+- **UI de Objetivos**: 2 campos nuevos (Indicador texto libre, Principio de la Política de Calidad) en el alta y en Resumen; badge "Sincronizado con Sheets (fila N)" en el detalle cuando `sheet_row` no es null.
+- **`.env.example`** y `.env.local`: 4 variables nuevas (`GOOGLE_SHEETS_CLIENT_EMAIL`, `GOOGLE_SHEETS_PRIVATE_KEY`, `GOOGLE_SHEETS_OBJECTIVES_SPREADSHEET_ID`, `GOOGLE_SHEETS_OBJECTIVES_SHEET_NAME`) — el ID de la planilla y el nombre de la pestaña ya se completaron en `.env.local` (no son secretos, los pasó el usuario en el chat); faltan las 2 de la cuenta de servicio, que el usuario está armando en Google Cloud Console.
+
+Verificado con Playwright + `dev-login`, sin reiniciar el servidor (seguía atendiendo tráfico real del usuario en paralelo durante toda la verificación): la pantalla de Configuración muestra el estado correcto de las 3 variables (2 faltantes, 1 configurada), "Probar conexión" falla con el mensaje esperado (`SheetsNotConfiguredError`, correcto porque todavía faltan 2 variables), el alta de un objetivo con los 2 campos nuevos funciona de punta a punta sin la sincronización configurada (confirma el criterio "apagado, no roto"). `tsc --noEmit`, `npm run lint` y `npm run build` sin errores (109 rutas). Entorno y objetivo de prueba limpiados.
+
+**Pendiente del lado del usuario**: terminar de crear la cuenta de servicio en Google Cloud Console, compartir la planilla real con su email como Editor, y completar `GOOGLE_SHEETS_CLIENT_EMAIL`/`GOOGLE_SHEETS_PRIVATE_KEY` en `.env.local`. Recién ahí se puede probar la importación real contra la planilla — hasta ahora todo lo construido se verificó con la integración deliberadamente "apagada" (sin credenciales), como corresponde dado que nunca se piden ni se inventan credenciales reales en el chat.
+
+## Objetivos ↔ Sheets: primer import real, corregido y con seguimiento tipo Gantt (2026-09-11)
+
+El usuario terminó de armar la cuenta de servicio y completó `GOOGLE_SHEETS_CLIENT_EMAIL`/`GOOGLE_SHEETS_PRIVATE_KEY` en su `.env.local`. "Probar conexión" funcionó a la primera. El primer "Importar desde Sheets" **salió mal y se revirtió** (se borraron los 10 objetivos creados, sin tocar la planilla real en ningún momento — la importación es de solo lectura) porque el mapeo de columnas se había armado solo a partir de los nombres que el usuario pasó por chat, sin ver los datos reales. Al inspeccionar la planilla real aparecieron 3 diferencias con lo asumido:
+
+1. **La fila 3 es el encabezado**, no datos — los objetivos reales arrancan en la fila 4. `FIRST_DATA_ROW` pasó de 3 a 4.
+2. **"Unidad Responsable de medición" es una sola columna**, no dos ("Unidad" + "Responsable de medición" como se había separado) — son 24 columnas reales (A:X), no 25 (A:Y). Se remapeó todo: `responsible` toma esa columna entera, `unit` queda sin fuente de import (no hay una columna de unidad separada en la planilla real).
+3. **Un objetivo puede ocupar más de una fila** — una fila con N° vacío es otra "Meta" del objetivo de la fila anterior (ej. OC-01 tiene META 1.1 y META 1.2 en 2 filas). Confirmado con el usuario: se juntan en un solo objetivo del portal, no en dos.
+
+También se confirmó con el usuario que las columnas Ene..Dic son casillas VERDADERO/FALSO (seguimiento mensual tipo Gantt: cumplido/no cumplido por mes), no un valor numérico — se guardan como 100/0 en `sgc_objective_results` y se reconvierten a booleano al escribir de vuelta a la planilla (para no romper el formato de casilla que ya tienen esas celdas).
+
+- **`lib/google-sheets/objective-mapping.ts`**: reescrito — `groupSheetRows()` reemplaza al `parseSheetRow()` de una sola fila; agrupa por N°, concatenando `goal`/`method`/`indicatorText` de las filas de continuación con salto de línea, y combinando el seguimiento mensual de todas las filas del grupo con OR lógico (cumplido en cualquiera de las "Metas" del objetivo = cumplido ese mes). `parseSheetBoolean()` nuevo (booleano nativo o texto "TRUE"/"FALSE"/"VERDADERO"/"FALSO"). `objectiveToSheetRow()` ahora arma 24 valores (A:X) y reconvierte los meses a booleano/`null` al escribir.
+- **`lib/google-sheets/client.ts`**: rangos corregidos a `A4:X` (lectura) y `A:X`/`A{row}:X{row}` (escritura); `updateObjectiveCell` ahora tipado a `boolean | null` en vez de número.
+- **`lib/google-sheets/sync.ts`**: `importObjectivesFromSheet()` usa `groupSheetRows()` en vez de iterar fila por fila; `pushMonthlyResultToSheetSafe` convierte el valor numérico del portal a booleano (`>= 50`) antes de escribirlo.
+- **`components/objetivos/monthly-gantt.tsx`** (nuevo): la vista de seguimiento mensual tipo Gantt que pidió el usuario — 12 celdas (Ene..Dic) con ✓/✗/— según cumplido/no cumplido/sin dato (colores reservados de estado: verde/rojo/gris, nunca solo color — siempre con ícono, siguiendo el criterio de la skill de dataviz de este entorno). Convive con el `TrendChart` existente en `ResultadosTab` (no lo reemplaza — sigue sirviendo para objetivos con resultados numéricos reales, no booleanos), agregado arriba de él. Se renderiza un bloque por cada año presente en los resultados del objetivo (o el año actual si todavía no tiene ninguno).
+
+**Reimportación real verificada** (revertida la primera, corregido el código, reimportado de nuevo): **8 objetivos reales** (OC-01 a OC-08) importados correctamente — títulos, responsables y fechas coinciden con la planilla; OC-01 quedó con las 2 Metas concatenadas correctamente en un solo objetivo (`OBJ-2026-012`); el seguimiento mensual (12/12 meses, todos "no cumplido" para OC-01, consistente con el dato real de la planilla) se ve bien en la vista Gantt nueva. El campo "Estado" de la planilla real dice "En seguimiento" para las 8 filas — no coincide con ninguno de los 4 estados del portal (`OBJECTIVE_STATUS_FLOW`), así que las 8 quedaron en "En curso" con el texto original preservado en Observaciones (queda documentado como algo a decidir más adelante: ¿agregar "En seguimiento" como quinto estado válido, o dejarlo así?). Verificado en pantalla completa y en un ancho de celular real (390px, ver `viewport-height-hides-layout-bugs` en memoria) — el Gantt se ve bien en las dos.
+
+`tsc --noEmit`, `npm run lint` y `npm run build` sin errores. Todo el trabajo de esta sección se hizo sin apagar el servidor de desarrollo ni una sola vez (recarga en caliente de `.env.local` para cada ida y vuelta con `ENABLE_DEV_LOGIN`).
+
+## Riesgos y Oportunidades conectados a la planilla real de Google Sheets (2026-09-11)
+
+El usuario pidió lo mismo que con Objetivos pero para Riesgos y Oportunidades. A diferencia de la vez pasada, esta vez **se leyó la planilla real directo** (con la cuenta de servicio ya funcionando) en vez de pedirle al usuario que describiera las columnas por chat — la lección de los 2 intentos fallidos de Objetivos. El resultado: cero sorpresas, import correcto a la primera.
+
+**Estructura real confirmada antes de escribir el mapeo**: la planilla (`AV-CAL-REG:0003 Matriz de Riesgos y Oportunidades`) tiene 2 pestañas con el mismo layout — "Riesgos" (29 filas de datos) y "Oportunidades" (28 filas), más una pestaña "Criterios" de solo referencia (escalas de Probabilidad/Impacto, no se importa). 19 columnas (A:S), encabezado en la fila 5, datos desde la fila 6. Se recorrieron las ~57 filas para confirmar que no hay ninguna con "Código" vacío — a diferencia de Objetivos, acá cada fila es un riesgo/oportunidad completo, sin filas de continuación que agrupar. Tampoco hay columna de "Estado" que reconciliar: el portal ya asigna el estado inicial solo (`createRisk` pone "Identificado"/"Identificada" según `kind`), así que no hizo falta ningún mecanismo de aviso como el de Objetivos.
+
+- **`lib/google-sheets/client.ts`** se generalizó (antes era específico de Objetivos): `SheetsConfig`/`getAccessToken`/`sheetsFetch` ya eran genéricos; se agregaron `getRisksSheetsConfig(kind)` (misma cuenta de servicio, otro `spreadsheetId`, pestaña según `kind`) y se renombraron las funciones de bajo nivel a genéricas (`readSheetRows`, `appendSheetRow`, `updateSheetRow`, `updateSheetCell`, todas reciben la `SheetsConfig` como parámetro en vez de resolverla solas) — `lib/google-sheets/sync.ts` (Objetivos) se actualizó para pasar su config explícitamente, sin cambiar ningún comportamiento.
+- **`lib/google-sheets/risk-mapping.ts`** (nuevo): mapeo de las 19 columnas. "Proceso / Actividad / Tarea" es una sola columna combinada (mapea a `process_name`, `activity` queda sin fuente — mismo criterio que "Unidad Responsable de medición" en Objetivos). "Verificación de la implementación" no tiene campo propio en el portal, se concatena dentro de `treatment_plan`. Las columnas de valoración calculada ("Valoración inicial", "Revaluación") no se importan — el portal ya las calcula solas con `getRiskScore`/`getRiskBand`.
+- **`lib/google-sheets/risk-sync.ts`** (nuevo): `importRisksFromSheet()` recorre las 2 pestañas por separado (los números de fila de cada una son independientes, así que el chequeo de "ya importado" también lo es); `pushRiskToSheetSafe()` sigue el mismo patrón "nunca lanza" que Objetivos.
+- **Schema**: 2 columnas nuevas en `sgc_risks` (`sheet_row`, `sheet_no`), mismo patrón que Objetivos.
+- **`lib/actions/risks.ts`**: `crearRiesgoAction`, `guardarTratamientoAction` y `guardarValoracionResidualAction` ahora empujan a Sheets después de guardar.
+- **`app/configuracion/riesgos-sheets/page.tsx`** + **`lib/actions/risk-sheets.ts`** (nuevos): mismo patrón que Objetivos en Sheets.
+- **Variables nuevas**: `GOOGLE_SHEETS_RISKS_SPREADSHEET_ID`, `GOOGLE_SHEETS_RISKS_SHEET_NAME` (default "Riesgos"), `GOOGLE_SHEETS_OPPORTUNITIES_SHEET_NAME` (default "Oportunidades") — reutilizan la misma cuenta de servicio (`GOOGLE_SHEETS_CLIENT_EMAIL`/`GOOGLE_SHEETS_PRIVATE_KEY`), no hizo falta pedir credenciales nuevas. El ID de esta planilla ya se completó en `.env.local` (no es secreto, lo pasó el usuario en el chat).
+
+**Import real verificado**: **57 riesgos/oportunidades importados** (29 + 28) a la primera, sin reintentos. Verificado en la base (RC-01 → `RISK-2026-002`, todos los campos coinciden exactamente con la fila real: procedencia, proceso, descripción, probabilidad/impacto inicial y residual, plan de tratamiento con la verificación de implementación concatenada, responsable, fecha, evidencia) y visualmente en el listado (matriz probabilidad × impacto poblada, 30 riesgos totales — 29 importados + 1 real preexistente de antes de esta sesión, `RISK-2026-001`, sin tocar) y en el detalle de un riesgo. `tsc --noEmit`, `npm run lint` y `npm run build` sin errores (111 rutas). Todo sin apagar el servidor de desarrollo.
+
 ## Próxima fase a implementar
 
 1. ~~El usuario carga las credenciales reales de Google Cloud Console y prueba el login real~~ — ✅ hecho el 2026-09-07, ver la sección de autenticación arriba.

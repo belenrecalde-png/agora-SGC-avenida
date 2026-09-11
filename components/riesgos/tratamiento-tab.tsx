@@ -6,7 +6,7 @@ import { getRiskBand, getRiskScore, type Area, type SgcRisk } from "@/lib/db/que
 import { guardarTratamientoAction } from "@/lib/actions/risks";
 
 const inputClass =
-  "w-full rounded-xl border border-border bg-white px-3 py-2 text-sm text-avenida-black placeholder:text-muted focus:border-avenida-violet focus:outline-none focus:ring-2 focus:ring-avenida-violet/20";
+  "w-full rounded-xl border border-border bg-white px-3 py-2 text-sm text-avenida-black placeholder:text-muted focus:border-avenida-violet focus:outline-none focus:ring-2 focus:ring-avenida-violet/20 disabled:cursor-not-allowed disabled:bg-avenida-gray/20 disabled:text-muted";
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
@@ -17,7 +17,15 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
   );
 }
 
-export function TratamientoTab({ risk, areas }: { risk: SgcRisk; areas: Area[] }) {
+export function TratamientoTab({
+  risk,
+  areas,
+  canEdit = true,
+}: {
+  risk: SgcRisk;
+  areas: Area[];
+  canEdit?: boolean;
+}) {
   const score = getRiskScore(risk.probability_initial, risk.impact_initial);
   const band = getRiskBand(risk.kind, score);
 
@@ -34,6 +42,7 @@ export function TratamientoTab({ risk, areas }: { risk: SgcRisk; areas: Area[] }
         </div>
         <form action={guardarTratamientoAction} className="flex flex-col gap-4">
           <input type="hidden" name="code" value={risk.code} />
+          <fieldset disabled={!canEdit} className="contents">
 
           <Field label="Descripción">
             <textarea name="description" defaultValue={risk.description} required rows={3} className={inputClass} />
@@ -118,11 +127,16 @@ export function TratamientoTab({ risk, areas }: { risk: SgcRisk; areas: Area[] }
             </div>
           </div>
 
-          <div>
-            <Button type="submit" size="sm">
-              Guardar
-            </Button>
-          </div>
+          </fieldset>
+          {canEdit ? (
+            <div>
+              <Button type="submit" size="sm">
+                Guardar
+              </Button>
+            </div>
+          ) : (
+            <p className="text-xs text-muted">Solo lectura — tu rol no permite editar este ítem.</p>
+          )}
         </form>
       </Card>
     </div>

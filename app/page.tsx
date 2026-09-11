@@ -7,7 +7,6 @@ import {
   Layers,
   AlertOctagon,
   Map,
-  BookOpen,
   FolderOpen,
   Sparkles,
   HelpCircle,
@@ -36,6 +35,7 @@ import {
   getRecordsByType,
   getUpcomingDueItems,
 } from "@/lib/dashboard-data";
+import { getHomePhotoUrl } from "@/lib/db/queries";
 
 export const dynamic = "force-dynamic";
 
@@ -89,16 +89,9 @@ const QUICK_ACCESS: {
     tone: "blue",
   },
   {
-    href: "/documentacion/instructivos",
-    label: "Instructivos",
-    description: "Paso a paso para tareas frecuentes del SGC.",
-    icon: BookOpen,
-    tone: "violet",
-  },
-  {
-    href: "/documentacion/documentos",
-    label: "Documentación SGC",
-    description: "Políticas, procedimientos y formularios vigentes.",
+    href: "/documentacion/informacion-documentada",
+    label: "Información documentada",
+    description: "Políticas, procedimientos, instructivos, formularios y registros vigentes.",
     icon: FolderOpen,
     tone: "blue",
   },
@@ -126,6 +119,7 @@ export default function Home() {
   const recordsByType = getRecordsByType();
   const recordsByArea = getRecordsByArea();
   const monthlyEvolution = getMonthlyEvolution();
+  const homePhotoUrl = getHomePhotoUrl();
 
   const statCards: StatCardData[] = [
     { label: "Registros abiertos", value: String(stats.registrosAbiertos), icon: ClipboardList, tone: "blue" },
@@ -140,7 +134,7 @@ export default function Home() {
 
   return (
     <div className="mx-auto flex max-w-7xl flex-col gap-10 pb-12">
-      <Hero />
+      <Hero photoUrl={homePhotoUrl} />
 
       <section className="flex flex-col gap-4">
         <h2 className="text-lg font-semibold text-avenida-black">Accesos rápidos</h2>

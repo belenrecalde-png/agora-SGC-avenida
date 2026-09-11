@@ -115,19 +115,11 @@
         },
         {
           "id": "contexto",
-          "label": "Contexto",
+          "label": "Contexto y partes interesadas",
           "href": "/planificacion/contexto",
           "icon": "Compass",
           "phase": "Fase 9",
-          "description": "Cuestiones internas y externas de la organización: análisis FODA/CAME y evaluación de pertinencia del cambio climático para el SGC."
-        },
-        {
-          "id": "partes-interesadas",
-          "label": "Partes interesadas",
-          "href": "/planificacion/partes-interesadas",
-          "icon": "Users",
-          "phase": "Fase 9",
-          "description": "Necesidades y expectativas de bancos, sellers, colaboradores, proveedores y demás partes interesadas, y su relación con riesgos y objetivos."
+          "description": "Cuestiones internas y externas de la organización (análisis FODA/CAME) y las necesidades y expectativas de bancos, sellers, colaboradores, proveedores y demás partes interesadas."
         },
         {
           "id": "objetivos-de-calidad",
@@ -146,19 +138,11 @@
       "items": [
         {
           "id": "mapa-de-procesos",
-          "label": "Mapa de procesos",
+          "label": "Procesos",
           "href": "/procesos/mapa",
           "icon": "Map",
           "phase": "Fase 10",
-          "description": "Vista general de los procesos de Avenida+ agrupados por tipo (estratégicos, operativos, de apoyo) y su interacción."
-        },
-        {
-          "id": "fichas-de-procesos",
-          "label": "Fichas de procesos",
-          "href": "/procesos/fichas",
-          "icon": "FileText",
-          "phase": "Fase 10",
-          "description": "Ficha completa de cada proceso: objetivo, alcance, entradas/salidas, indicadores, riesgos, documentos y registros asociados."
+          "description": "Vista general de los procesos de Avenida+ agrupados por tipo (estratégicos, operativos, de apoyo) y su interacción, con la ficha completa de cada uno: objetivo, alcance, entradas/salidas, indicadores, riesgos, documentos y registros asociados."
         }
       ]
     },
@@ -188,16 +172,14 @@
           "label": "Satisfacción",
           "href": "/evaluacion/satisfaccion",
           "icon": "ThumbsUp",
-          "phase": "Fase 13",
-          "description": "Seguimiento de la satisfacción del cliente y su relación con quejas, reclamos y acciones de mejora."
+          "description": "Seguimiento de la satisfacción del cliente a lo largo del tiempo, en relación con las Quejas y Reclamos del Registro SGC."
         },
         {
           "id": "seguimiento",
           "label": "Seguimiento",
           "href": "/evaluacion/seguimiento",
           "icon": "TrendingUp",
-          "phase": "Fase 14",
-          "description": "Tablero de seguimiento transversal: vencimientos, reincidencias y cumplimiento por área a lo largo del tiempo."
+          "description": "Vista detallada y filtrable de vencimientos, reincidencias y cumplimiento por área — el Home muestra el resumen ejecutivo de esto mismo."
         }
       ]
     },
@@ -207,36 +189,11 @@
       "icon": "FolderOpen",
       "items": [
         {
-          "id": "documentos-del-sgc",
-          "label": "Documentos del SGC",
-          "href": "/documentacion/documentos",
-          "icon": "FileText",
-          "phase": "Fase 12",
-          "description": "Biblioteca de políticas, procedimientos, formularios, manuales y registros, con estado (Borrador, Vigente, Obsoleto)."
-        },
-        {
-          "id": "instructivos",
-          "label": "Instructivos",
-          "href": "/documentacion/instructivos",
-          "icon": "BookOpen",
-          "phase": "Fase 12",
-          "description": "Guías paso a paso para tareas del SGC, Plane y Calidad, cada una con un botón de acción directa al final."
-        },
-        {
-          "id": "registros",
-          "label": "Registros",
-          "href": "/documentacion/registros",
-          "icon": "FileStack",
-          "phase": "Fase 12",
-          "description": "Evidencias de que algo ocurrió: formularios completados, actas, verificaciones y demás registros del sistema."
-        },
-        {
-          "id": "documentos-externos",
-          "label": "Documentos externos",
-          "href": "/documentacion/externos",
-          "icon": "ExternalLink",
-          "phase": "Fase 12",
-          "description": "Normativas, contratos y documentación de origen externo necesaria para el funcionamiento del SGC."
+          "id": "informacion-documentada",
+          "label": "Información documentada",
+          "href": "/documentacion/informacion-documentada",
+          "icon": "FolderOpen",
+          "description": "Políticas, procedimientos, instructivos, formularios, registros y documentos externos del SGC, regidos por AV-CAL-PRO:0001 y registrados en la planilla AV-CAL-FOR:0001."
         }
       ]
     },
@@ -297,7 +254,6 @@
           "label": "Áreas",
           "href": "/configuracion/areas",
           "icon": "Building2",
-          "phase": "Fase 3",
           "description": "Administración de las áreas de Avenida+ usadas para clasificar registros, procesos y responsables."
         },
         {
@@ -305,7 +261,6 @@
           "label": "Procesos",
           "href": "/configuracion/procesos",
           "icon": "Workflow",
-          "phase": "Fase 10",
           "description": "Alta y edición de los procesos del mapa de procesos y sus responsables."
         },
         {
@@ -313,7 +268,6 @@
           "label": "Tipos",
           "href": "/configuracion/tipos",
           "icon": "Tag",
-          "phase": "Fase 3",
           "description": "Administración de los tipos de registro del SGC (NC, AC, AP, OM, Q, S, R y los que se agreguen) sin necesidad de tocar código."
         },
         {
@@ -321,7 +275,6 @@
           "label": "Estados",
           "href": "/configuracion/estados",
           "icon": "CircleDot",
-          "phase": "Fase 3",
           "description": "Estados posibles de cada tipo de registro y sus transiciones permitidas."
         },
         {
@@ -329,7 +282,6 @@
           "label": "Usuarios",
           "href": "/configuracion/usuarios",
           "icon": "UserCog",
-          "phase": "Fase 3",
           "description": "Alta, edición y desactivación de usuarios del portal y su área/rol asignado."
         },
         {
@@ -337,23 +289,34 @@
           "label": "Roles",
           "href": "/configuracion/roles",
           "icon": "KeyRound",
-          "phase": "Fase 3",
-          "description": "Roles (Administrador SGC, Calidad, Responsable de Área, Colaborador, Consulta) y permisos granulares asociados."
+          "description": "Los 5 roles del portal (Administrador SGC, Calidad, Responsable de Área, Colaborador, Consulta) y qué puede hacer cada uno."
         },
         {
           "id": "plane-config",
           "label": "Plane",
           "href": "/configuracion/plane",
           "icon": "Plug",
-          "phase": "Fase 4",
           "description": "Estado de conexión con Plane, credenciales enmascaradas, mapeo de proyectos por área, prueba de conexión y sincronización manual."
+        },
+        {
+          "id": "objetivos-sheets",
+          "label": "Objetivos en Sheets",
+          "href": "/configuracion/objetivos-sheets",
+          "icon": "Sheet",
+          "description": "Sincronización de Objetivos de Calidad con tu planilla real de Google Sheets: estado de conexión, importación inicial y sincronización automática al crear/editar."
+        },
+        {
+          "id": "riesgos-sheets",
+          "label": "Riesgos en Sheets",
+          "href": "/configuracion/riesgos-sheets",
+          "icon": "Sheet",
+          "description": "Sincronización de Riesgos y Oportunidades con tu planilla real de Google Sheets (pestañas Riesgos y Oportunidades): estado de conexión, importación inicial y sincronización automática al crear/editar."
         },
         {
           "id": "apps-script",
           "label": "Apps Script",
           "href": "/configuracion/apps-script",
           "icon": "ScrollText",
-          "phase": "Fase 5",
           "description": "Configuración de la integración con Google Apps Script y Google Sheets para automatizaciones y envío de mails."
         },
         {
@@ -361,7 +324,6 @@
           "label": "Integraciones",
           "href": "/configuracion/integraciones",
           "icon": "Boxes",
-          "phase": "Fase 4",
           "description": "Panel general de integraciones activas del portal (Plane, Apps Script y las que se sumen a futuro)."
         },
         {
@@ -369,8 +331,14 @@
           "label": "Logs",
           "href": "/configuracion/logs",
           "icon": "ScrollText",
-          "phase": "Fase 4",
           "description": "Historial de sincronizaciones con Plane: tickets revisados, actualizados y errores por corrida."
+        },
+        {
+          "id": "pagina-de-inicio",
+          "label": "Página de inicio",
+          "href": "/configuracion/inicio",
+          "icon": "ImageIcon",
+          "description": "Subir o cambiar la foto del equipo que aparece en el Home."
         }
       ]
     }

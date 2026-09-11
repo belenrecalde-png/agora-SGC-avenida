@@ -7,6 +7,7 @@ import { Header, type HeaderUser } from "./header";
 import type { Crumb } from "./breadcrumbs";
 import { findNavItemByHref, findSectionByHref } from "@/lib/nav-config";
 import { getConceptById } from "@/lib/concepts-data";
+import type { NotificationItem } from "@/lib/notifications-data";
 
 function buildCrumbs(pathname: string): Crumb[] {
   if (pathname === "/") return [];
@@ -33,7 +34,15 @@ function buildCrumbs(pathname: string): Crumb[] {
   return crumbs;
 }
 
-export function AppShell({ children, user }: { children: ReactNode; user: HeaderUser | null }) {
+export function AppShell({
+  children,
+  user,
+  notifications,
+}: {
+  children: ReactNode;
+  user: HeaderUser | null;
+  notifications: NotificationItem[];
+}) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
 
@@ -47,11 +56,11 @@ export function AppShell({ children, user }: { children: ReactNode; user: Header
 
   return (
     <div className="flex min-h-screen">
-      <Sidebar />
-      <MobileSidebar open={mobileOpen} onClose={() => setMobileOpen(false)} />
+      <Sidebar role={user?.role} />
+      <MobileSidebar open={mobileOpen} onClose={() => setMobileOpen(false)} role={user?.role} />
 
       <div className="flex min-h-screen flex-1 flex-col">
-        <Header crumbs={crumbs} onOpenMobileMenu={() => setMobileOpen(true)} user={user} />
+        <Header crumbs={crumbs} onOpenMobileMenu={() => setMobileOpen(true)} user={user} notifications={notifications} />
         <main className="flex-1 px-4 py-6 sm:px-6 lg:px-8">{children}</main>
       </div>
     </div>

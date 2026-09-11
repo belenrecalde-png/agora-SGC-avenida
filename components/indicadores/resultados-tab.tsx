@@ -17,7 +17,15 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
   );
 }
 
-export function ResultadosTab({ indicator, results }: { indicator: SgcIndicator; results: IndicatorResult[] }) {
+export function ResultadosTab({
+  indicator,
+  results,
+  canEdit = true,
+}: {
+  indicator: SgcIndicator;
+  results: IndicatorResult[];
+  canEdit?: boolean;
+}) {
   const points = results.map((r) => ({
     period: r.period,
     actual: r.value,
@@ -56,28 +64,30 @@ export function ResultadosTab({ indicator, results }: { indicator: SgcIndicator;
         </Card>
       )}
 
-      <Card className="flex flex-col gap-3 p-5">
-        <p className="text-sm font-semibold text-avenida-black">Agregar resultado de un período</p>
-        <form action={agregarResultadoIndicadorAction} className="flex flex-col gap-3">
-          <input type="hidden" name="code" value={indicator.code} />
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <Field label="Período">
-              <input name="period" required placeholder="Ej.: 2026-01" className={inputClass} />
+      {canEdit && (
+        <Card className="flex flex-col gap-3 p-5">
+          <p className="text-sm font-semibold text-avenida-black">Agregar resultado de un período</p>
+          <form action={agregarResultadoIndicadorAction} className="flex flex-col gap-3">
+            <input type="hidden" name="code" value={indicator.code} />
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <Field label="Período">
+                <input name="period" required placeholder="Ej.: 2026-01" className={inputClass} />
+              </Field>
+              <Field label="Valor">
+                <input type="number" step="any" name="value" className={inputClass} />
+              </Field>
+            </div>
+            <Field label="Notas (opcional)">
+              <input name="notes" className={inputClass} />
             </Field>
-            <Field label="Valor">
-              <input type="number" step="any" name="value" className={inputClass} />
-            </Field>
-          </div>
-          <Field label="Notas (opcional)">
-            <input name="notes" className={inputClass} />
-          </Field>
-          <div>
-            <Button type="submit" variant="secondary" size="sm">
-              Guardar resultado
-            </Button>
-          </div>
-        </form>
-      </Card>
+            <div>
+              <Button type="submit" variant="secondary" size="sm">
+                Guardar resultado
+              </Button>
+            </div>
+          </form>
+        </Card>
+      )}
     </div>
   );
 }

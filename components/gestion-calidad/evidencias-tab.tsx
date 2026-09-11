@@ -11,7 +11,15 @@ function formatDateTime(iso: string): string {
   return new Date(iso).toLocaleString("es-AR", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
 }
 
-export function EvidenciasTab({ record, evidence }: { record: SgcRecord; evidence: RecordEvidence[] }) {
+export function EvidenciasTab({
+  record,
+  evidence,
+  canEdit = true,
+}: {
+  record: SgcRecord;
+  evidence: RecordEvidence[];
+  canEdit?: boolean;
+}) {
   return (
     <div className="flex flex-col gap-6">
       {record.evidence_note && (
@@ -55,22 +63,24 @@ export function EvidenciasTab({ record, evidence }: { record: SgcRecord; evidenc
         </Card>
       )}
 
-      <Card className="flex flex-col gap-3 p-5">
-        <p className="text-sm font-semibold text-avenida-black">Agregar evidencia</p>
-        <form action={agregarEvidenciaAction} className="flex flex-col gap-3">
-          <input type="hidden" name="code" value={record.code} />
-          <textarea name="description" required rows={2} placeholder="Describí la evidencia" className={inputClass} />
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <input name="link" placeholder="Link (opcional)" className={inputClass} />
-            <input name="createdBy" placeholder="Quién la agrega (opcional)" className={inputClass} />
-          </div>
-          <div>
-            <Button type="submit" variant="secondary" size="sm">
-              Guardar evidencia
-            </Button>
-          </div>
-        </form>
-      </Card>
+      {canEdit && (
+        <Card className="flex flex-col gap-3 p-5">
+          <p className="text-sm font-semibold text-avenida-black">Agregar evidencia</p>
+          <form action={agregarEvidenciaAction} className="flex flex-col gap-3">
+            <input type="hidden" name="code" value={record.code} />
+            <textarea name="description" required rows={2} placeholder="Describí la evidencia" className={inputClass} />
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <input name="link" placeholder="Link (opcional)" className={inputClass} />
+              <input name="createdBy" placeholder="Quién la agrega (opcional)" className={inputClass} />
+            </div>
+            <div>
+              <Button type="submit" variant="secondary" size="sm">
+                Guardar evidencia
+              </Button>
+            </div>
+          </form>
+        </Card>
+      )}
     </div>
   );
 }

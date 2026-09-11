@@ -4,7 +4,7 @@ import { LinkButton } from "@/components/ui/button";
 
 const WORDS = ["Procesos", "Personas", "Conocimiento", "Resultados"];
 
-export function Hero() {
+export function Hero({ photoUrl }: { photoUrl: string | null }) {
   return (
     <div className="hero-gradient overflow-hidden rounded-3xl border border-border">
       <div className="grid grid-cols-1 gap-8 p-6 sm:p-10 lg:grid-cols-[1.1fr_0.9fr] lg:items-center lg:gap-10">
@@ -31,12 +31,21 @@ export function Hero() {
         </div>
 
         <div className="flex flex-col gap-4">
-          <div className="flex aspect-[4/3] w-full flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-avenida-violet/30 bg-white/60 text-center">
-            <ImageIcon className="h-8 w-8 text-avenida-violet/50" />
-            <p className="max-w-[220px] text-xs text-muted">
-              Espacio para una foto del equipo Avenida+
-            </p>
-          </div>
+          {photoUrl ? (
+            <div className="aspect-[4/3] w-full overflow-hidden rounded-2xl border border-white/40">
+              {/* <img> a propósito, no next/image: la ruta es dinámica y exige
+                  sesión (ver Configuración → Página de inicio). */}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={photoUrl} alt="Foto del equipo Avenida+" className="h-full w-full object-cover" />
+            </div>
+          ) : (
+            <div className="flex aspect-[4/3] w-full flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-avenida-violet/30 bg-white/60 text-center">
+              <ImageIcon className="h-8 w-8 text-avenida-violet/50" />
+              <p className="max-w-[220px] text-xs text-muted">
+                Espacio para una foto del equipo Avenida+
+              </p>
+            </div>
+          )}
 
           <div className="flex flex-wrap items-center gap-2">
             {WORDS.map((word) => (

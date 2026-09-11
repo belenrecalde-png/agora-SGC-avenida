@@ -1,6 +1,13 @@
 /**
  * Comparador de conceptos (Fase 2). Pares que suelen confundirse, con la diferencia
  * clave explicada en lenguaje simple más un ejemplo de Avenida+.
+ *
+ * Los últimos 8 pares (a partir de "observacion-vs-nc") vienen de la sección
+ * "5. Diferencias entre términos que requieren especial atención" del
+ * Diccionario Corporativo de Términos del Sistema de Gestión (v0, 27/08/2026)
+ * — algunas de esas diferencias son de a tres términos (ej. Revisión vs.
+ * Verificación vs. Validación); se partieron en pares para que encajen en
+ * este formato A/B.
  */
 export type ConceptComparison = {
   id: string;
@@ -127,5 +134,93 @@ export const CONCEPT_COMPARISONS: ConceptComparison[] = [
     avenidaExample: "La acción es \"capacitar al equipo de soporte en el nuevo procedimiento\"; la evidencia es la lista de asistencia y el material usado.",
     whenToUseA: "Al definir qué se va a hacer y quién es responsable.",
     whenToUseB: "Al querer demostrar, después, que efectivamente se hizo.",
+  },
+  {
+    id: "observacion-vs-nc",
+    termA: "Observación",
+    termB: "No Conformidad",
+    keyDifference:
+      "La Observación identifica algo que merece atención o seguimiento, pero no necesariamente representa un incumplimiento; la No Conformidad requiere que exista un requisito incumplido.",
+    avenidaExample:
+      "Que un proceso dependa de un paso manual que solo sabe hacer una persona es una Observación. Que ese paso manual haya hecho que se incumpliera un SLA acordado es una No Conformidad.",
+    whenToUseA: "Cuando algo llama la atención pero todavía no confirmaste que se haya incumplido un requisito.",
+    whenToUseB: "Cuando ya identificaste el requisito puntual que no se cumplió.",
+  },
+  {
+    id: "correccion-vs-contencion",
+    termA: "Corrección",
+    termB: "Contención",
+    keyDifference:
+      "La Contención controla o limita el impacto de un problema mientras se lo analiza; la Corrección elimina la No Conformidad ya detectada. Muchas veces hacen falta las dos, en ese orden.",
+    avenidaExample:
+      "Deshabilitar temporalmente una funcionalidad con un comportamiento incorrecto es contención. Corregir esa funcionalidad para que vuelva a comportarse como corresponde es la corrección.",
+    whenToUseA: "Para eliminar definitivamente la No Conformidad detectada.",
+    whenToUseB: "Para frenar el impacto ya mismo, mientras todavía se está analizando qué pasó.",
+  },
+  {
+    id: "mejora-vs-accion-correctiva",
+    termA: "Mejora",
+    termB: "Acción Correctiva",
+    keyDifference:
+      "La Mejora no requiere que haya existido antes un incumplimiento — se puede mejorar algo que ya funcionaba bien. La Acción Correctiva sí parte siempre de una No Conformidad, para eliminar su causa y evitar que se repita.",
+    avenidaExample:
+      "Simplificar un flujo que ya cumplía los requisitos es una Mejora. Modificar ese mismo flujo porque generó una No Conformidad es una Acción Correctiva.",
+    whenToUseA: "Cuando no hay un incumplimiento de por medio, solo una forma de hacer algo mejor.",
+    whenToUseB: "Cuando existe una No Conformidad y hay que actuar sobre su causa.",
+  },
+  {
+    id: "revision-vs-verificacion",
+    termA: "Revisión",
+    termB: "Verificación",
+    keyDifference:
+      "La Revisión evalúa el avance y la capacidad de un proceso en curso (de Diseño y Desarrollo, por ejemplo) para cumplir los requisitos; la Verificación confirma, con evidencia objetiva, que las salidas ya cumplieron los requisitos definidos.",
+    avenidaExample:
+      "A mitad de una integración, revisar si el avance permite llegar a la fecha comprometida es una Revisión. Comprobar, al terminar, que la integración cumple exactamente lo especificado es una Verificación.",
+    whenToUseA: "Para preguntarte \"¿cómo viene el proceso y vamos a poder cumplir?\", mientras todavía está en curso.",
+    whenToUseB: "Para preguntarte \"¿hicimos lo que definimos?\", sobre un resultado ya terminado.",
+  },
+  {
+    id: "verificacion-vs-validacion",
+    termA: "Verificación",
+    termB: "Validación",
+    keyDifference:
+      "La Verificación confirma que se cumplieron los requisitos que se definieron. La Validación confirma que el resultado realmente sirve para el uso o la necesidad prevista — se puede cumplir todo lo definido y aun así no servir para lo que hacía falta.",
+    avenidaExample:
+      "Comprobar que una funcionalidad se comporta exactamente como decía la especificación es Verificación. Que el área de Soporte confirme, usándola, que esa funcionalidad realmente resuelve el problema del seller es Validación.",
+    whenToUseA: "Para preguntarte \"¿cumple con lo que definimos?\".",
+    whenToUseB: "Para preguntarte \"¿esto sirve para lo que se necesitaba?\".",
+  },
+  {
+    id: "procedimiento-vs-instructivo",
+    termA: "Procedimiento",
+    termB: "Instructivo",
+    keyDifference:
+      "El Procedimiento establece qué actividades deben realizarse, quién interviene, responsabilidades y controles de un proceso completo; el Instructivo explica, de forma operativa, cómo ejecutar una actividad o tarea puntual dentro de ese procedimiento.",
+    avenidaExample:
+      "El procedimiento de activación de sellers define qué hay que pedir, quién valida y en qué orden. El instructivo de \"Cómo tipificar un ticket de Plane\" es el paso a paso de una sola tarea dentro de un proceso.",
+    whenToUseA: "Cuando necesitás entender el proceso completo: qué se hace, quién y con qué controles.",
+    whenToUseB: "Cuando necesitás el paso a paso concreto para ejecutar una tarea puntual.",
+  },
+  {
+    id: "evidencia-objetiva-vs-registro",
+    termA: "Evidencia objetiva",
+    termB: "Registro",
+    keyDifference:
+      "La Evidencia objetiva es información verificable que demuestra algo, sin importar en qué soporte esté. El Registro es información documentada que específicamente conserva evidencia de una actividad realizada o un resultado obtenido — un registro puede ser evidencia objetiva, pero la evidencia objetiva no siempre toma la forma de un registro formal.",
+    avenidaExample:
+      "Una captura de pantalla del error de una integración es evidencia objetiva. El registro de UAT que documenta formalmente que se probó y aprobó la solución es, además, un registro.",
+    whenToUseA: "Cuando necesitás demostrar algo con una prueba verificable, sin importar el formato.",
+    whenToUseB: "Cuando necesitás la constancia formal y conservada de que una actividad se realizó.",
+  },
+  {
+    id: "desvio-vs-nc",
+    termA: "Desvío",
+    termB: "No Conformidad",
+    keyDifference:
+      "El Desvío es una diferencia entre lo esperado y lo que efectivamente ocurrió, sin que eso implique automáticamente un incumplimiento. Se convierte en No Conformidad solo si existe un requisito aplicable que haya sido incumplido.",
+    avenidaExample:
+      "Que una tarea tome más tiempo del estimado, sin incumplir ningún acuerdo, es un desvío. Que ese retraso haga incumplir un SLA comprometido con un banco es una No Conformidad.",
+    whenToUseA: "Cuando algo salió distinto a lo esperado, pero todavía no evaluaste si incumple un requisito.",
+    whenToUseB: "Cuando ya confirmaste que existe un requisito puntual que no se cumplió.",
   },
 ];

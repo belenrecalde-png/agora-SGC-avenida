@@ -30,8 +30,10 @@ import {
   isPlaneConfigured,
   listWorkItems,
   mapPlanePriorityToPortal,
+  resolveLabelId,
   resolveWorkItemStatus,
   stripHtml,
+  workItemHasLabel,
   type PlaneWorkItem,
 } from "@/lib/plane/client";
 
@@ -56,7 +58,7 @@ export type TicketPlaneRow = {
 
 export type TicketsPlaneResult = {
   configured: boolean;
-  projects: { id: string; name: string }[];
+  projects: { id: string; name: string; importLabel: string | null }[];
   rows: TicketPlaneRow[];
   /** Un mensaje de error por proyecto que falló al listar (no rompe el resto). */
   projectErrors: { projectId: string; projectName: string; message: string }[];
@@ -118,13 +120,27 @@ async function rowFromWorkItem(
  * No pagina más allá de eso todavía (ver limitación documentada arriba) —
  * para un proyecto con muchos tickets, esta primera versión solo muestra
  * los primeros que devuelva Plane.
+ *
+ * Si el mapeo tiene `import_label` cargado, se filtran los work items del
+ * proyecto a solo los que tengan esa etiqueta en Plane — así el proyecto
+ * entero no queda "pendiente de tipificar" ticket por ticket, solo lo que se
+ * marcó explícitamente como relevante para el SGC. Sin etiqueta, se listan
+ * todos los work items del proyecto (comportamiento original de la Fase 6).
+ *
+ * `onlyAreaId` (autorización fina por rol): si se pasa, solo se consultan
+ * los proyectos mapeados a esa área — un Responsable de Área no debe ver
+ * (ni golpear la API por) tickets de proyectos de otras áreas.
  */
-export async function listTicketsPlaneRows(): Promise<TicketsPlaneResult> {
+export async function listTicketsPlaneRows(onlyAreaId?: string | null): Promise<TicketsPlaneResult> {
   const configured = isPlaneConfigured();
-  const mappings = listPlaneProjectMappings().filter((m) => m.active);
+  let mappings = listPlaneProjectMappings().filter((m) => m.active);
+  if (onlyAreaId !== undefined) {
+    mappings = mappings.filter((m) => m.area_id === onlyAreaId);
+  }
   const projects = mappings.map((m) => ({
     id: m.plane_project_id,
     name: m.plane_project_name ?? m.plane_project_id,
+    importLabel: m.import_label,
   }));
 
   if (!configured || projects.length === 0) {
@@ -135,18 +151,35 @@ export async function listTicketsPlaneRows(): Promise<TicketsPlaneResult> {
   const rows: TicketPlaneRow[] = [];
   const projectErrors: { projectId: string; projectName: string; message: string }[] = [];
 
-  for (const project of projects) {
+  for (const mapping of mappings) {
+    const projectId = mapping.plane_project_id;
+    const projectName = mapping.plane_project_name ?? mapping.plane_project_id;
     try {
-      const { results } = await listWorkItems(project.id);
-      for (const item of results) {
-        rows.push(await rowFromWorkItem(project.id, project.name, item, typesById));
+      const { results } = await listWorkItems(projectId);
+
+      let items = results;
+      if (mapping.import_label) {
+        const labelId = await resolveLabelId(projectId, mapping.import_label);
+        if (!labelId) {
+          projectErrors.push({
+            projectId,
+            projectName,
+            message: `No se encontró la etiqueta "${mapping.import_label}" en este proyecto de Plane — revisar el nombre exacto en Configuración → Plane.`,
+          });
+          continue;
+        }
+        items = results.filter((item) => workItemHasLabel(item, labelId));
+      }
+
+      for (const item of items) {
+        rows.push(await rowFromWorkItem(projectId, projectName, item, typesById));
       }
     } catch (error) {
       const message =
         error instanceof PlaneApiError || error instanceof Error
           ? error.message
           : "Error desconocido al listar los tickets de este proyecto.";
-      projectErrors.push({ projectId: project.id, projectName: project.name, message });
+      projectErrors.push({ projectId, projectName, message });
     }
   }
 

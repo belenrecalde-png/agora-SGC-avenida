@@ -8,6 +8,7 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { addIndicatorResult, createIndicator, getIndicatorByCode, updateIndicator } from "@/lib/db/queries";
+import { isReadOnlyRole, requireEditAccess, requireGestionAccess } from "@/lib/auth/access";
 
 function requireIndicator(code: string) {
   const indicator = getIndicatorByCode(code);
@@ -41,7 +42,11 @@ function readIndicatorFields(formData: FormData) {
 }
 
 export async function crearIndicadorAction(formData: FormData): Promise<void> {
+  const user = await requireGestionAccess();
+  if (isReadOnlyRole(user.role)) throw new Error("Tu rol es de solo lectura — no podés cargar indicadores.");
+
   const fields = readIndicatorFields(formData);
+  if (user.role === "responsable_area") fields.areaId = user.area_id;
   const indicator = createIndicator(fields);
   redirect(`/evaluacion/indicadores/${indicator.code}`);
 }
@@ -49,6 +54,7 @@ export async function crearIndicadorAction(formData: FormData): Promise<void> {
 export async function guardarIndicadorAction(formData: FormData): Promise<void> {
   const code = String(formData.get("code") ?? "").trim();
   const indicator = requireIndicator(code);
+  await requireEditAccess(indicator);
   const fields = readIndicatorFields(formData);
 
   updateIndicator(indicator.id, fields);
@@ -58,6 +64,7 @@ export async function guardarIndicadorAction(formData: FormData): Promise<void> 
 export async function agregarResultadoIndicadorAction(formData: FormData): Promise<void> {
   const code = String(formData.get("code") ?? "").trim();
   const indicator = requireIndicator(code);
+  await requireEditAccess(indicator);
   const period = String(formData.get("period") ?? "").trim();
   if (!period) throw new Error("Indicá el período (ej. 2026-01).");
 

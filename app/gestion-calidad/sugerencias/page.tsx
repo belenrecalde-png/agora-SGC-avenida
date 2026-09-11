@@ -1,18 +1,23 @@
 import { MessageSquare } from "lucide-react";
-import { PlaceholderPage } from "@/components/layout/placeholder-page";
+import { TipoRegistroView } from "@/components/gestion-calidad/tipo-registro-view";
+import { loadTipoRegistroData } from "@/lib/gestion-tipo";
+
+export const dynamic = "force-dynamic";
 
 export const metadata = {
   title: `Sugerencias | Ágora`,
 };
 
-export default function Page() {
+export default async function Page() {
+  const { records, types, areas } = await loadTipoRegistroData("S");
   return (
-    <PlaceholderPage
-      icon={MessageSquare}
+    <TipoRegistroView
       title="Sugerencias"
       description="Propuestas o recomendaciones de cualquier colaborador, con seguimiento de evaluación hasta su implementación."
-      phase="Fase 3 y 7"
-      sectionLabel="Gestión de Calidad"
+      icon={MessageSquare}
+      records={records}
+      types={types}
+      areas={areas}
     />
   );
 }

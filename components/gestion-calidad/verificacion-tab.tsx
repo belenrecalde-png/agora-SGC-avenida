@@ -20,14 +20,25 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
   );
 }
 
+function ReadOnlyField({ label, value }: { label: string; value: string | null }) {
+  return (
+    <div className="flex flex-col gap-1">
+      <p className="text-xs font-semibold uppercase tracking-wide text-muted">{label}</p>
+      <p className="text-sm text-avenida-black">{value || "Sin definir"}</p>
+    </div>
+  );
+}
+
 export function VerificacionTab({
   record,
   source,
   estadoError,
+  canEdit = true,
 }: {
   record: SgcRecord;
   source: RecordRelationship | undefined;
   estadoError?: string;
+  canEdit?: boolean;
 }) {
   const readyToClose = record.effective === true;
 
@@ -61,6 +72,20 @@ export function VerificacionTab({
             Confirma si la acción realmente eliminó la causa raíz — no alcanza con que esté &ldquo;implementada&rdquo;.
           </p>
         </div>
+        {!canEdit ? (
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <ReadOnlyField label="Fecha prevista de verificación" value={record.effectiveness_due_date} />
+            <ReadOnlyField label="Responsable de verificar" value={record.effectiveness_responsible} />
+            <div className="sm:col-span-2">
+              <ReadOnlyField label="Resultado de la verificación" value={record.effectiveness_result} />
+            </div>
+            <ReadOnlyField label="Evidencia de la verificación" value={record.effectiveness_evidence} />
+            <ReadOnlyField
+              label="¿Fue eficaz?"
+              value={record.effective === null ? "Todavía sin definir" : record.effective ? "Sí, eficaz" : "No, no eficaz"}
+            />
+          </div>
+        ) : (
         <form action={guardarVerificacionAction} className="flex flex-col gap-4">
           <input type="hidden" name="code" value={record.code} />
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -90,6 +115,7 @@ export function VerificacionTab({
             </Button>
           </div>
         </form>
+        )}
       </Card>
 
       <Card className="flex flex-col gap-4 p-5">
@@ -107,22 +133,24 @@ export function VerificacionTab({
             </p>
           )}
         </div>
-        <form action={cambiarEstadoAction} className="flex flex-wrap items-end gap-3">
-          <input type="hidden" name="code" value={record.code} />
-          <input type="hidden" name="tab" value="verificacion" />
-          <Field label="Nuevo estado">
-            <select name="status" defaultValue={record.status} className={inputClass}>
-              {AC_STATUS_FLOW.map((status) => (
-                <option key={status} value={status}>
-                  {status}
-                </option>
-              ))}
-            </select>
-          </Field>
-          <Button type="submit" variant="secondary" size="sm">
-            Actualizar estado
-          </Button>
-        </form>
+        {canEdit && (
+          <form action={cambiarEstadoAction} className="flex flex-wrap items-end gap-3">
+            <input type="hidden" name="code" value={record.code} />
+            <input type="hidden" name="tab" value="verificacion" />
+            <Field label="Nuevo estado">
+              <select name="status" defaultValue={record.status} className={inputClass}>
+                {AC_STATUS_FLOW.map((status) => (
+                  <option key={status} value={status}>
+                    {status}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Button type="submit" variant="secondary" size="sm">
+              Actualizar estado
+            </Button>
+          </form>
+        )}
         {record.closed_at && (
           <p className="text-xs text-muted">
             Cerrada el {new Date(record.closed_at).toLocaleDateString("es-AR", { day: "2-digit", month: "short", year: "numeric" })}.

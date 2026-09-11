@@ -1,5 +1,4 @@
 import { HelpCircle, Flag } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { LinkButton } from "@/components/ui/button";
 import { FaqAccordion } from "./faq-accordion";
@@ -26,9 +25,6 @@ export default function FaqPage() {
           Respuestas directas a las dudas más habituales de cualquier colaborador sobre el SGC — no solo
           definiciones, sino preguntas del día a día.
         </p>
-        <Badge tone="amber" className="w-fit">
-          Borrador — contenido a revisar por el equipo de Calidad
-        </Badge>
       </div>
 
       <FaqAccordion />

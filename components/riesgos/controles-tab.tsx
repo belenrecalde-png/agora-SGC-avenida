@@ -11,7 +11,15 @@ function formatDateTime(iso: string): string {
   return new Date(iso).toLocaleString("es-AR", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
 }
 
-export function ControlesTab({ risk, controls }: { risk: SgcRisk; controls: RiskControl[] }) {
+export function ControlesTab({
+  risk,
+  controls,
+  canEdit = true,
+}: {
+  risk: SgcRisk;
+  controls: RiskControl[];
+  canEdit?: boolean;
+}) {
   return (
     <div className="flex flex-col gap-6">
       {risk.existing_control && (
@@ -45,27 +53,29 @@ export function ControlesTab({ risk, controls }: { risk: SgcRisk; controls: Risk
         </Card>
       )}
 
-      <Card className="flex flex-col gap-3 p-5">
-        <p className="text-sm font-semibold text-avenida-black">Agregar control</p>
-        <form action={agregarControlAction} className="flex flex-col gap-3">
-          <input type="hidden" name="code" value={risk.code} />
-          <textarea name="description" required rows={2} placeholder="Describí el control" className={inputClass} />
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <input name="responsible" placeholder="Responsable (opcional)" className={inputClass} />
-            <select name="effectiveness" defaultValue="" className={inputClass}>
-              <option value="">Eficacia sin definir</option>
-              <option value="Alta">Alta</option>
-              <option value="Media">Media</option>
-              <option value="Baja">Baja</option>
-            </select>
-          </div>
-          <div>
-            <Button type="submit" variant="secondary" size="sm">
-              Guardar control
-            </Button>
-          </div>
-        </form>
-      </Card>
+      {canEdit && (
+        <Card className="flex flex-col gap-3 p-5">
+          <p className="text-sm font-semibold text-avenida-black">Agregar control</p>
+          <form action={agregarControlAction} className="flex flex-col gap-3">
+            <input type="hidden" name="code" value={risk.code} />
+            <textarea name="description" required rows={2} placeholder="Describí el control" className={inputClass} />
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <input name="responsible" placeholder="Responsable (opcional)" className={inputClass} />
+              <select name="effectiveness" defaultValue="" className={inputClass}>
+                <option value="">Eficacia sin definir</option>
+                <option value="Alta">Alta</option>
+                <option value="Media">Media</option>
+                <option value="Baja">Baja</option>
+              </select>
+            </div>
+            <div>
+              <Button type="submit" variant="secondary" size="sm">
+                Guardar control
+              </Button>
+            </div>
+          </form>
+        </Card>
+      )}
     </div>
   );
 }

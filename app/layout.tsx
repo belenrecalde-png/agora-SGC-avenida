@@ -4,6 +4,7 @@ import { AppShell } from "@/components/layout/app-shell";
 import type { HeaderUser } from "@/components/layout/header";
 import { getCurrentUser } from "@/lib/auth/dal";
 import { ROLE_LABELS, isRole } from "@/lib/auth/roles";
+import { getNotificationsForUser } from "@/lib/notifications-data";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -34,13 +35,17 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
         email: currentUser.email,
         initials: initialsOf(currentUser.name),
         roleLabel: isRole(currentUser.role) ? ROLE_LABELS[currentUser.role] : currentUser.role,
+        role: currentUser.role,
       }
     : null;
+  const notifications = currentUser ? getNotificationsForUser(currentUser) : [];
 
   return (
     <html lang="es" className="h-full antialiased">
       <body className="min-h-full bg-background text-foreground">
-        <AppShell user={user}>{children}</AppShell>
+        <AppShell user={user} notifications={notifications}>
+          {children}
+        </AppShell>
       </body>
     </html>
   );

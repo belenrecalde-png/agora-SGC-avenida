@@ -3,6 +3,7 @@ import type { ComponentType } from "react";
 import { ArrowLeft, Flag, ShieldCheck } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { LinkButton } from "@/components/ui/button";
+import { DocumentReferenceCard, type DocumentRef } from "@/components/ui/document-reference-card";
 import { getConceptById } from "@/lib/concepts-data";
 
 /**
@@ -21,12 +22,14 @@ export function GlossaryPage({
   icon: Icon,
   sectionLabel,
   conceptIds,
+  documentRefs,
 }: {
   title: string;
   description: string;
   icon: ComponentType<{ className?: string }>;
   sectionLabel?: string;
   conceptIds: string[];
+  documentRefs?: DocumentRef[];
 }) {
   const concepts = conceptIds.map(getConceptById).filter((c) => c !== undefined);
 
@@ -54,6 +57,14 @@ export function GlossaryPage({
           </span>
         </div>
       </Card>
+
+      {documentRefs && documentRefs.length > 0 && (
+        <div className="flex flex-col gap-3">
+          {documentRefs.map((ref) => (
+            <DocumentReferenceCard key={ref.code} {...ref} />
+          ))}
+        </div>
+      )}
 
       {concepts.length > 0 && (
         <div className="flex flex-col gap-3">

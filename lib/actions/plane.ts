@@ -13,18 +13,21 @@ import { syncAllRecordsStatusFromPlane } from "@/lib/plane/sync";
 function refreshPlaneScreens() {
   revalidatePath("/configuracion/plane");
   revalidatePath("/configuracion/logs");
+  revalidatePath("/gestion-calidad/tickets-plane");
 }
 
 export async function upsertPlaneMappingAction(formData: FormData): Promise<void> {
   const areaId = String(formData.get("areaId") ?? "").trim();
   const planeProjectId = String(formData.get("planeProjectId") ?? "").trim();
   const planeProjectName = String(formData.get("planeProjectName") ?? "").trim() || null;
+  const importLabel = String(formData.get("importLabel") ?? "").trim() || null;
+  const autoTypeCode = String(formData.get("autoTypeCode") ?? "").trim() || null;
 
   if (!areaId || !planeProjectId) {
     throw new Error("Hace falta elegir un área y cargar el ID de proyecto de Plane.");
   }
 
-  upsertPlaneProjectMapping({ areaId, planeProjectId, planeProjectName });
+  upsertPlaneProjectMapping({ areaId, planeProjectId, planeProjectName, importLabel, autoTypeCode });
   refreshPlaneScreens();
 }
 

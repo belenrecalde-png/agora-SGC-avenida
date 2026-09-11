@@ -1,8 +1,10 @@
 import { AlertOctagon, Lightbulb, ShieldAlert, TrendingUp } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { LinkButton } from "@/components/ui/button";
+import { DocumentReferenceCard } from "@/components/ui/document-reference-card";
 import { RiesgosExplorer } from "@/components/riesgos/riesgos-explorer";
 import { getRiskBand, getRiskScore, listAreas, listRisks } from "@/lib/db/queries";
+import { filterByAreaAccess, requireGestionAccess } from "@/lib/auth/access";
 
 export const dynamic = "force-dynamic";
 
@@ -10,8 +12,9 @@ export const metadata = {
   title: "Riesgos y oportunidades | Ágora",
 };
 
-export default function RiesgosYOportunidadesPage() {
-  const risks = listRisks();
+export default async function RiesgosYOportunidadesPage() {
+  const user = await requireGestionAccess();
+  const risks = filterByAreaAccess(listRisks(), user);
   const areas = listAreas();
 
   const riesgos = risks.filter((r) => r.kind === "riesgo");
@@ -47,6 +50,12 @@ export default function RiesgosYOportunidadesPage() {
         Identificación, valoración (probabilidad × impacto) y tratamiento de riesgos y oportunidades, con
         matriz de criticidad inicial y residual.
       </p>
+
+      <DocumentReferenceCard
+        code="AV-CAL-PRO:0002"
+        label="Procedimiento de gestión de riesgos y oportunidades"
+        url="https://docs.google.com/document/d/1g1WsE9RRMeLkm_ETaA70VzCrcFbJJZuh/edit?usp=sharing&ouid=113379592521668155429&rtpof=true&sd=true"
+      />
 
       <div className="flex flex-col gap-4 sm:flex-row">
         <Card className="flex flex-1 flex-col gap-3 p-4">

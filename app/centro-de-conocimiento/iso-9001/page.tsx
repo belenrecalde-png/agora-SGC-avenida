@@ -1,6 +1,5 @@
 import { ShieldCheck } from "lucide-react";
 import { Card } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { ISO_MAP } from "@/lib/iso-map-data";
 
 export const metadata = {
@@ -25,9 +24,6 @@ export default function Iso9001Page() {
           El mapa de la norma ISO 9001, explicado en lenguaje simple y aplicado a cómo trabajamos en Avenida+ — sin
           citar el texto de la norma.
         </p>
-        <Badge tone="amber" className="w-fit">
-          Borrador — contenido a revisar por el equipo de Calidad
-        </Badge>
       </div>
 
       <div className="flex flex-col gap-4">

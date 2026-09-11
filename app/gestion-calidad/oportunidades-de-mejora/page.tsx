@@ -1,18 +1,23 @@
 import { Lightbulb } from "lucide-react";
-import { PlaceholderPage } from "@/components/layout/placeholder-page";
+import { TipoRegistroView } from "@/components/gestion-calidad/tipo-registro-view";
+import { loadTipoRegistroData } from "@/lib/gestion-tipo";
+
+export const dynamic = "force-dynamic";
 
 export const metadata = {
   title: `Oportunidades de Mejora | Ágora`,
 };
 
-export default function Page() {
+export default async function Page() {
+  const { records, types, areas } = await loadTipoRegistroData("OM");
   return (
-    <PlaceholderPage
-      icon={Lightbulb}
+    <TipoRegistroView
       title="Oportunidades de Mejora"
       description="Ideas para hacer más simple, rápido o eficiente un proceso, evaluadas con la matriz Impacto/Esfuerzo."
-      phase="Fase 7"
-      sectionLabel="Gestión de Calidad"
+      icon={Lightbulb}
+      records={records}
+      types={types}
+      areas={areas}
     />
   );
 }

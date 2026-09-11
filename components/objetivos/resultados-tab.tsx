@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { TrendChart } from "@/components/ui/trend-chart";
+import { MonthlyGantt } from "@/components/objetivos/monthly-gantt";
 import type { ObjectiveResult, SgcObjective } from "@/lib/db/queries";
 import { agregarResultadoObjetivoAction } from "@/lib/actions/objectives";
 
@@ -17,15 +18,32 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
   );
 }
 
-export function ResultadosTab({ objective, results }: { objective: SgcObjective; results: ObjectiveResult[] }) {
+export function ResultadosTab({
+  objective,
+  results,
+  canEdit = true,
+}: {
+  objective: SgcObjective;
+  results: ObjectiveResult[];
+  canEdit?: boolean;
+}) {
   const points = results.map((r) => ({
     period: r.period,
     actual: r.actual_value,
     target: r.target_value ?? objective.target_value,
   }));
 
+  const resultYears = Array.from(new Set(results.map((r) => Number.parseInt(r.period.slice(0, 4), 10)))).filter(
+    (y) => !Number.isNaN(y),
+  );
+  const ganttYears = (resultYears.length > 0 ? resultYears : [new Date().getFullYear()]).sort((a, b) => b - a);
+
   return (
     <div className="flex flex-col gap-6">
+      {ganttYears.map((year) => (
+        <MonthlyGantt key={year} year={year} results={results} />
+      ))}
+
       <Card className="flex flex-col gap-4 p-5">
         <h2 className="text-sm font-semibold text-avenida-black">Meta vs Real</h2>
         <TrendChart points={points} unit={objective.unit ?? undefined} />
@@ -58,31 +76,33 @@ export function ResultadosTab({ objective, results }: { objective: SgcObjective;
         </Card>
       )}
 
-      <Card className="flex flex-col gap-3 p-5">
-        <p className="text-sm font-semibold text-avenida-black">Agregar resultado de un período</p>
-        <form action={agregarResultadoObjetivoAction} className="flex flex-col gap-3">
-          <input type="hidden" name="code" value={objective.code} />
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-            <Field label="Período">
-              <input name="period" required placeholder="Ej.: 2026-01" className={inputClass} />
+      {canEdit && (
+        <Card className="flex flex-col gap-3 p-5">
+          <p className="text-sm font-semibold text-avenida-black">Agregar resultado de un período</p>
+          <form action={agregarResultadoObjetivoAction} className="flex flex-col gap-3">
+            <input type="hidden" name="code" value={objective.code} />
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <Field label="Período">
+                <input name="period" required placeholder="Ej.: 2026-01" className={inputClass} />
+              </Field>
+              <Field label="Valor real">
+                <input type="number" step="any" name="actualValue" className={inputClass} />
+              </Field>
+              <Field label="Meta de ese período (opcional)">
+                <input type="number" step="any" name="targetValue" placeholder={objective.target_value?.toString() ?? ""} className={inputClass} />
+              </Field>
+            </div>
+            <Field label="Notas (opcional)">
+              <input name="notes" className={inputClass} />
             </Field>
-            <Field label="Valor real">
-              <input type="number" step="any" name="actualValue" className={inputClass} />
-            </Field>
-            <Field label="Meta de ese período (opcional)">
-              <input type="number" step="any" name="targetValue" placeholder={objective.target_value?.toString() ?? ""} className={inputClass} />
-            </Field>
-          </div>
-          <Field label="Notas (opcional)">
-            <input name="notes" className={inputClass} />
-          </Field>
-          <div>
-            <Button type="submit" variant="secondary" size="sm">
-              Guardar resultado
-            </Button>
-          </div>
-        </form>
-      </Card>
+            <div>
+              <Button type="submit" variant="secondary" size="sm">
+                Guardar resultado
+              </Button>
+            </div>
+          </form>
+        </Card>
+      )}
     </div>
   );
 }

@@ -88,6 +88,14 @@ export type PlaneProjectMapping = {
   area_id: string;
   plane_project_id: string;
   plane_project_name: string | null;
+  // Etiqueta opcional de Plane: si está cargada, "Tickets Plane" solo lista
+  // como pendientes de tipificar los work items que tengan esta etiqueta —
+  // sin ella, se listan todos los work items del proyecto (comportamiento
+  // original de la Fase 6).
+  import_label: string | null;
+  // Código de tipo SGC (record_types.code) sugerido para pre-cargar al
+  // tipificar un ticket de este proyecto — ver `app/.../tipificar/page.tsx`.
+  auto_type_code: string | null;
   active: boolean;
   created_at: string;
   updated_at: string;
@@ -217,6 +225,8 @@ function rowToPlaneProjectMapping(row: Record<string, unknown>): PlaneProjectMap
     area_id: row.area_id as string,
     plane_project_id: row.plane_project_id as string,
     plane_project_name: (row.plane_project_name as string) ?? null,
+    import_label: (row.import_label as string) ?? null,
+    auto_type_code: (row.auto_type_code as string) ?? null,
     active: toBool(row.active),
     created_at: row.created_at as string,
     updated_at: row.updated_at as string,
@@ -490,6 +500,12 @@ export function getPlaneProjectMappingByArea(areaId: string): PlaneProjectMappin
   return row ? rowToPlaneProjectMapping(row) : undefined;
 }
 
+/** Usado por "Tipificar ticket" para pre-cargar tipo/área a partir del proyecto de Plane del ticket. */
+export function getPlaneProjectMappingByProjectId(planeProjectId: string): PlaneProjectMapping | undefined {
+  const row = db.prepare("SELECT * FROM plane_project_mappings WHERE plane_project_id = ?").get(planeProjectId);
+  return row ? rowToPlaneProjectMapping(row) : undefined;
+}
+
 /**
  * Alta o edición del mapeo área↔proyecto de Plane. `planeProjectId` tiene que
  * ser el UUID real del proyecto en la instancia de Plane del usuario — esta
@@ -500,26 +516,40 @@ export function upsertPlaneProjectMapping(input: {
   areaId: string;
   planeProjectId: string;
   planeProjectName?: string | null;
+  importLabel?: string | null;
+  autoTypeCode?: string | null;
 }): PlaneProjectMapping {
   const existing = getPlaneProjectMappingByArea(input.areaId);
   const now = new Date().toISOString();
+  const importLabel = input.importLabel?.trim() || null;
+  const autoTypeCode = input.autoTypeCode?.trim() || null;
 
   if (existing) {
     db.prepare(
-      "UPDATE plane_project_mappings SET plane_project_id = ?, plane_project_name = ?, active = 1, updated_at = ? WHERE id = ?",
-    ).run(input.planeProjectId, input.planeProjectName ?? null, now, existing.id);
-    return { ...existing, plane_project_id: input.planeProjectId, plane_project_name: input.planeProjectName ?? null, active: true, updated_at: now };
+      "UPDATE plane_project_mappings SET plane_project_id = ?, plane_project_name = ?, import_label = ?, auto_type_code = ?, active = 1, updated_at = ? WHERE id = ?",
+    ).run(input.planeProjectId, input.planeProjectName ?? null, importLabel, autoTypeCode, now, existing.id);
+    return {
+      ...existing,
+      plane_project_id: input.planeProjectId,
+      plane_project_name: input.planeProjectName ?? null,
+      import_label: importLabel,
+      auto_type_code: autoTypeCode,
+      active: true,
+      updated_at: now,
+    };
   }
 
   const id = randomUUID();
   db.prepare(
-    "INSERT INTO plane_project_mappings (id, area_id, plane_project_id, plane_project_name, active, created_at, updated_at) VALUES (?, ?, ?, ?, 1, ?, ?)",
-  ).run(id, input.areaId, input.planeProjectId, input.planeProjectName ?? null, now, now);
+    "INSERT INTO plane_project_mappings (id, area_id, plane_project_id, plane_project_name, import_label, auto_type_code, active, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)",
+  ).run(id, input.areaId, input.planeProjectId, input.planeProjectName ?? null, importLabel, autoTypeCode, now, now);
   return {
     id,
     area_id: input.areaId,
     plane_project_id: input.planeProjectId,
     plane_project_name: input.planeProjectName ?? null,
+    import_label: importLabel,
+    auto_type_code: autoTypeCode,
     active: true,
     created_at: now,
     updated_at: now,
@@ -955,12 +985,15 @@ export function linkExistingRecordRelationship(
 }
 
 /**
- * Crea una Acción Correctiva nueva a partir de una No Conformidad (u otro
- * registro) y la vincula automáticamente. Hereda área y proceso del origen
- * para no hacer recargar esos datos a quien la crea.
+ * Crea un registro nuevo de cierto tipo a partir de otro (ej. una Acción
+ * Correctiva desde una No Conformidad, una Oportunidad de Mejora desde una
+ * Sugerencia, una No Conformidad desde una Queja o Reclamo) y los vincula
+ * automáticamente. Hereda área y proceso del origen para no hacer recargar
+ * esos datos a quien la crea.
  */
-export function createCorrectiveActionForRecord(
+export function createEscalatedRecord(
   source: SgcRecord,
+  targetTypeCode: string,
   input: {
     title: string;
     description: string;
@@ -969,8 +1002,11 @@ export function createCorrectiveActionForRecord(
     priority: "Baja" | "Media" | "Alta";
   },
 ): SgcRecord {
-  const ac = createRecord({
-    typeCode: "AC",
+  const targetType = getRecordTypeByCode(targetTypeCode);
+  const targetLabel = targetType?.name ?? targetTypeCode;
+
+  const created = createRecord({
+    typeCode: targetTypeCode,
     title: input.title,
     description: input.description,
     areaId: source.area_id,
@@ -981,22 +1017,36 @@ export function createCorrectiveActionForRecord(
     priority: input.priority,
     urgent: false,
     evidenceNote: null,
-    comments: `Acción Correctiva generada desde ${source.code}.`,
+    comments: `${targetLabel} generada desde ${source.code}.`,
   });
 
   if (input.dueDate) {
     db.prepare("UPDATE records SET due_date = ?, updated_at = ? WHERE id = ?").run(
       input.dueDate,
       new Date().toISOString(),
-      ac.id,
+      created.id,
     );
   }
 
-  createRelationship(source.id, ac.id, `Acción Correctiva de ${source.code}`);
-  addActivityLog(source.id, "Acción Correctiva creada", `Se creó ${ac.code} como Acción Correctiva de este registro.`);
-  addActivityLog(ac.id, "Creada desde una No Conformidad", `Creada como Acción Correctiva de ${source.code}.`);
+  createRelationship(source.id, created.id, `${targetLabel} de ${source.code}`);
+  addActivityLog(source.id, `${targetLabel} creada`, `Se creó ${created.code} como ${targetLabel} de este registro.`);
+  addActivityLog(created.id, "Creada desde otro registro", `Creada a partir de ${source.code}.`);
 
-  return getRecordById(ac.id)!;
+  return getRecordById(created.id)!;
+}
+
+/** Caso particular de `createEscalatedRecord`, usado desde la pestaña "Análisis y corrección" de una NC. */
+export function createCorrectiveActionForRecord(
+  source: SgcRecord,
+  input: {
+    title: string;
+    description: string;
+    responsible: string;
+    dueDate: string | null;
+    priority: "Baja" | "Media" | "Alta";
+  },
+): SgcRecord {
+  return createEscalatedRecord(source, "AC", input);
 }
 
 // ---------- Fase 7: evidencias ----------
@@ -1061,6 +1111,8 @@ export type SgcRisk = {
   created_at: string;
   updated_at: string;
   closed_at: string | null;
+  sheet_row: number | null;
+  sheet_no: string | null;
 };
 
 export type RiskControl = {
@@ -1116,6 +1168,8 @@ function rowToRisk(row: Record<string, unknown>): SgcRisk {
     created_at: row.created_at as string,
     updated_at: row.updated_at as string,
     closed_at: (row.closed_at as string) ?? null,
+    sheet_row: (row.sheet_row as number) ?? null,
+    sheet_no: (row.sheet_no as string) ?? null,
   };
 }
 
@@ -1298,6 +1352,16 @@ export function updateRiskResidual(
   return getRiskById(riskId)!;
 }
 
+/** Marca qué fila de la planilla de Sheets le corresponde a este riesgo/oportunidad — mismo patrón que `setObjectiveSheetRow`. */
+export function setRiskSheetRow(riskId: string, sheetRow: number, sheetNo: string | null): void {
+  db.prepare("UPDATE sgc_risks SET sheet_row = ?, sheet_no = ?, updated_at = ? WHERE id = ?").run(
+    sheetRow,
+    sheetNo,
+    new Date().toISOString(),
+    riskId,
+  );
+}
+
 /**
  * Cambia el estado de un riesgo/oportunidad. Bloquea el pase a un estado de
  * cierre si todavía no hay valoración residual ni verificación registrada —
@@ -1423,6 +1487,10 @@ export type SgcObjective = {
   created_at: string;
   updated_at: string;
   closed_at: string | null;
+  sheet_row: number | null;
+  sheet_no: string | null;
+  indicator_text: string | null;
+  policy_principle: string | null;
 };
 
 export type ObjectiveResult = {
@@ -1490,6 +1558,10 @@ function rowToObjective(row: Record<string, unknown>): SgcObjective {
     created_at: row.created_at as string,
     updated_at: row.updated_at as string,
     closed_at: (row.closed_at as string) ?? null,
+    sheet_row: (row.sheet_row as number) ?? null,
+    sheet_no: (row.sheet_no as string) ?? null,
+    indicator_text: (row.indicator_text as string) ?? null,
+    policy_principle: (row.policy_principle as string) ?? null,
   };
 }
 
@@ -1548,6 +1620,7 @@ export type CreateObjectiveInput = {
   goal: string | null;
   targetValue: number | null;
   indicatorId: string | null;
+  indicatorText: string | null;
   unit: string | null;
   resources: string | null;
   responsible: string | null;
@@ -1557,6 +1630,7 @@ export type CreateObjectiveInput = {
   endDate: string | null;
   frequency: string | null;
   method: string | null;
+  policyPrinciple: string | null;
 };
 
 export function createObjective(input: CreateObjectiveInput): SgcObjective {
@@ -1566,9 +1640,9 @@ export function createObjective(input: CreateObjectiveInput): SgcObjective {
 
   db.prepare(
     `INSERT INTO sgc_objectives (
-      id, code, title, goal, target_value, indicator_id, unit, resources, responsible,
-      area_id, process_name, start_date, end_date, frequency, method, status, created_at, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'En curso', ?, ?)`,
+      id, code, title, goal, target_value, indicator_id, indicator_text, unit, resources, responsible,
+      area_id, process_name, start_date, end_date, frequency, method, policy_principle, status, created_at, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'En curso', ?, ?)`,
   ).run(
     id,
     code,
@@ -1576,6 +1650,7 @@ export function createObjective(input: CreateObjectiveInput): SgcObjective {
     input.goal,
     input.targetValue,
     input.indicatorId,
+    input.indicatorText,
     input.unit,
     input.resources,
     input.responsible,
@@ -1585,6 +1660,7 @@ export function createObjective(input: CreateObjectiveInput): SgcObjective {
     input.endDate,
     input.frequency,
     input.method,
+    input.policyPrinciple,
     now,
     now,
   );
@@ -1622,9 +1698,9 @@ export function updateObjective(
   const now = new Date().toISOString();
   db.prepare(
     `UPDATE sgc_objectives SET
-      title = ?, goal = ?, target_value = ?, indicator_id = ?, unit = ?, resources = ?,
+      title = ?, goal = ?, target_value = ?, indicator_id = ?, indicator_text = ?, unit = ?, resources = ?,
       responsible = ?, area_id = ?, process_name = ?, start_date = ?, end_date = ?,
-      frequency = ?, method = ?, current_result = ?, compliance_percent = ?, evidence = ?,
+      frequency = ?, method = ?, policy_principle = ?, current_result = ?, compliance_percent = ?, evidence = ?,
       observations = ?, updated_at = ?
      WHERE id = ?`,
   ).run(
@@ -1632,6 +1708,7 @@ export function updateObjective(
     input.goal,
     input.targetValue,
     input.indicatorId,
+    input.indicatorText,
     input.unit,
     input.resources,
     input.responsible,
@@ -1641,6 +1718,7 @@ export function updateObjective(
     input.endDate,
     input.frequency,
     input.method,
+    input.policyPrinciple,
     input.currentResult,
     input.compliancePercent,
     input.evidence,
@@ -1650,6 +1728,16 @@ export function updateObjective(
   );
   addActivityLog(objectiveId, "Objetivo actualizado", input.currentResult ? `Resultado actual: ${input.currentResult}` : undefined);
   return getObjectiveById(objectiveId)!;
+}
+
+/** Marca qué fila de la planilla de Sheets le corresponde a este objetivo — la usan tanto la importación inicial como el push automático al crear uno nuevo. */
+export function setObjectiveSheetRow(objectiveId: string, sheetRow: number, sheetNo: string | null): void {
+  db.prepare("UPDATE sgc_objectives SET sheet_row = ?, sheet_no = ?, updated_at = ? WHERE id = ?").run(
+    sheetRow,
+    sheetNo,
+    new Date().toISOString(),
+    objectiveId,
+  );
 }
 
 export function updateObjectiveStatus(objectiveId: string, newStatus: string): SgcObjective {
@@ -1686,6 +1774,18 @@ export function listObjectiveResults(objectiveId: string): ObjectiveResult[] {
     .prepare("SELECT * FROM sgc_objective_results WHERE objective_id = ? ORDER BY period ASC")
     .all(objectiveId)
     .map(rowToObjectiveResult);
+}
+
+/** Agrega una línea a `observations` sin pisar lo que ya había — usado por la importación desde Sheets para no perder el estado original de la planilla cuando no coincide con ningún estado del portal. */
+export function appendObjectiveObservation(objectiveId: string, note: string): void {
+  const objective = getObjectiveById(objectiveId);
+  if (!objective) return;
+  const merged = objective.observations ? `${objective.observations}\n${note}` : note;
+  db.prepare("UPDATE sgc_objectives SET observations = ?, updated_at = ? WHERE id = ?").run(
+    merged,
+    new Date().toISOString(),
+    objectiveId,
+  );
 }
 
 // ---------- Indicadores ----------
@@ -1809,6 +1909,65 @@ export function listIndicatorResults(indicatorId: string): IndicatorResult[] {
     .map(rowToIndicatorResult);
 }
 
+// ---------- Evaluación → Satisfacción ----------
+
+export type SatisfactionResult = {
+  id: string;
+  period: string;
+  area_id: string | null;
+  score: number;
+  unit: string | null;
+  respondents: number | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+function rowToSatisfactionResult(row: Record<string, unknown>): SatisfactionResult {
+  return {
+    id: row.id as string,
+    period: row.period as string,
+    area_id: (row.area_id as string) ?? null,
+    score: row.score as number,
+    unit: (row.unit as string) ?? null,
+    respondents: (row.respondents as number) ?? null,
+    notes: (row.notes as string) ?? null,
+    created_at: row.created_at as string,
+    updated_at: row.updated_at as string,
+  };
+}
+
+export function listSatisfactionResults(): SatisfactionResult[] {
+  return db.prepare("SELECT * FROM sgc_satisfaction_results ORDER BY period ASC").all().map(rowToSatisfactionResult);
+}
+
+export function addSatisfactionResult(input: {
+  period: string;
+  areaId: string | null;
+  score: number;
+  unit: string | null;
+  respondents: number | null;
+  notes: string | null;
+}): SatisfactionResult {
+  const id = randomUUID();
+  const now = new Date().toISOString();
+  db.prepare(
+    `INSERT INTO sgc_satisfaction_results (id, period, area_id, score, unit, respondents, notes, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  ).run(id, input.period, input.areaId, input.score, input.unit, input.respondents, input.notes, now, now);
+  return {
+    id,
+    period: input.period,
+    area_id: input.areaId,
+    score: input.score,
+    unit: input.unit,
+    respondents: input.respondents,
+    notes: input.notes,
+    created_at: now,
+    updated_at: now,
+  };
+}
+
 // ---------- Autenticación: usuarios ----------
 
 export type PortalUser = {
@@ -1822,6 +1981,7 @@ export type PortalUser = {
   created_at: string;
   updated_at: string;
   last_login_at: string | null;
+  notifications_last_seen_at: string | null;
 };
 
 function rowToPortalUser(row: Record<string, unknown>): PortalUser {
@@ -1836,6 +1996,7 @@ function rowToPortalUser(row: Record<string, unknown>): PortalUser {
     created_at: row.created_at as string,
     updated_at: row.updated_at as string,
     last_login_at: (row.last_login_at as string) ?? null,
+    notifications_last_seen_at: (row.notifications_last_seen_at as string) ?? null,
   };
 }
 
@@ -1901,5 +2062,37 @@ export function toggleUserActive(userId: string): void {
     new Date().toISOString(),
     userId,
   );
+}
+
+/** Marca "vistas" las notificaciones de un usuario — todo lo posterior a este momento cuenta como no leído. */
+export function updateNotificationsLastSeenAt(userId: string): void {
+  db.prepare("UPDATE users SET notifications_last_seen_at = ? WHERE id = ?").run(new Date().toISOString(), userId);
+}
+
+// ---------- Configuración general del sitio (clave/valor) ----------
+
+export function getSiteSetting(key: string): string | null {
+  const row = db.prepare("SELECT value FROM site_settings WHERE key = ?").get(key) as { value: string } | undefined;
+  return row?.value ?? null;
+}
+
+export function setSiteSetting(key: string, value: string): void {
+  const now = new Date().toISOString();
+  db.prepare(
+    `INSERT INTO site_settings (key, value, updated_at) VALUES (?, ?, ?)
+     ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`,
+  ).run(key, value, now);
+}
+
+export function deleteSiteSetting(key: string): void {
+  db.prepare("DELETE FROM site_settings WHERE key = ?").run(key);
+}
+
+export const HOME_PHOTO_SETTING_KEY = "home_photo_filename";
+
+/** URL pública (servida por `app/api/uploads/[filename]`) de la foto del equipo del Home, o `null` si no se cargó ninguna. */
+export function getHomePhotoUrl(): string | null {
+  const filename = getSiteSetting(HOME_PHOTO_SETTING_KEY);
+  return filename ? `/api/uploads/${filename}` : null;
 }
 

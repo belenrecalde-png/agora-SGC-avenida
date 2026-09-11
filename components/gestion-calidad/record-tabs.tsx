@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 
-export type RecordTabKey = "resumen" | "analisis" | "verificacion" | "evidencias" | "relaciones" | "historial";
+export type RecordTabKey = "resumen" | "analisis" | "verificacion" | "escalar" | "evidencias" | "relaciones" | "historial";
 
 export type RecordTabDef = { key: RecordTabKey; label: string };
 

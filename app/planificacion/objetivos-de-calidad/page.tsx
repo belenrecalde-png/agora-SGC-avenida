@@ -1,8 +1,10 @@
 import { Award, CheckCircle2, AlertTriangle, XCircle } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { LinkButton } from "@/components/ui/button";
+import { DocumentReferenceCard } from "@/components/ui/document-reference-card";
 import { ObjetivosTable } from "@/components/objetivos/objetivos-table";
 import { listAreas, listObjectives } from "@/lib/db/queries";
+import { filterByAreaAccess, requireGestionAccess } from "@/lib/auth/access";
 
 export const dynamic = "force-dynamic";
 
@@ -10,8 +12,9 @@ export const metadata = {
   title: "Objetivos de Calidad | Ágora",
 };
 
-export default function ObjetivosDeCalidadPage() {
-  const objectives = listObjectives();
+export default async function ObjetivosDeCalidadPage() {
+  const user = await requireGestionAccess();
+  const objectives = filterByAreaAccess(listObjectives(), user);
   const areas = listAreas();
 
   const cumplidos = objectives.filter((o) => o.status === "Cumplido").length;
@@ -39,6 +42,12 @@ export default function ObjetivosDeCalidadPage() {
         Objetivos con meta, indicador asociado, responsable y frecuencia de seguimiento, con vista de
         cumplimiento mensual.
       </p>
+
+      <DocumentReferenceCard
+        code="AV-CAL-OD:0001"
+        label="Objetivos de Calidad"
+        url="https://docs.google.com/document/d/1stbAd0A2MOc1vE-aIHTlZCS9mGFgltWQflG4WLCwAgg/edit?usp=sharing"
+      />
 
       <div className="flex flex-col gap-4 sm:flex-row">
         <Card className="flex flex-1 flex-col gap-3 p-4">

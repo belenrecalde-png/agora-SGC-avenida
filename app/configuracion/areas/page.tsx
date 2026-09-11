@@ -2,6 +2,7 @@ import { Building2 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { SubmitButton } from "@/components/ui/submit-button";
 import { listAreas } from "@/lib/db/queries";
 import { createAreaAction, toggleAreaAction } from "@/lib/actions/admin";
 
@@ -58,9 +59,9 @@ export default function AreasPage() {
             placeholder="Ej: Legales"
             className="h-10 flex-1 rounded-xl border border-border bg-white px-3 text-sm text-avenida-black placeholder:text-muted focus:border-avenida-violet focus:outline-none focus:ring-2 focus:ring-avenida-violet/20"
           />
-          <Button type="submit" className="shrink-0">
+          <SubmitButton className="shrink-0" pendingText="Agregando…">
             Agregar
-          </Button>
+          </SubmitButton>
         </form>
       </Card>
     </div>

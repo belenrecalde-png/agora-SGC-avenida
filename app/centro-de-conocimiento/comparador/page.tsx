@@ -24,9 +24,6 @@ export default function ComparadorPage() {
         <p className="text-sm text-avenida-black">
           Diferencias clave entre conceptos que suelen confundirse, con un ejemplo de Avenida+ y cuándo usar cada uno.
         </p>
-        <Badge tone="amber" className="w-fit">
-          Borrador — contenido a revisar por el equipo de Calidad
-        </Badge>
       </div>
 
       <div className="flex flex-col gap-4">

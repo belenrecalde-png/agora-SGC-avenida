@@ -1,16 +1,18 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
-import { ArrowLeft, Clock, ExternalLink } from "lucide-react";
+import { notFound, redirect } from "next/navigation";
+import { AlertTriangle, ArrowLeft, Clock, ExternalLink } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Badge, type BadgeTone } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { RecordTabs, type RecordTabDef, type RecordTabKey } from "@/components/gestion-calidad/record-tabs";
 import { AnalisisTab } from "@/components/gestion-calidad/analisis-tab";
 import { VerificacionTab } from "@/components/gestion-calidad/verificacion-tab";
+import { EscalarTab } from "@/components/gestion-calidad/escalar-tab";
 import { EvidenciasTab } from "@/components/gestion-calidad/evidencias-tab";
 import { RelacionesTab } from "@/components/gestion-calidad/relaciones-tab";
-import { actualizarVencimientoAction } from "@/lib/actions/gestion";
+import { actualizarVencimientoAction, cambiarEstadoAction } from "@/lib/actions/gestion";
 import {
+  GENERIC_STATUS_FLOW,
   getPlaneProjectMappingByArea,
   getRecordByCode,
   listActivityLog,
@@ -21,6 +23,8 @@ import {
   listRiskRelationshipsForRecord,
 } from "@/lib/db/queries";
 import { isPlaneConfigured } from "@/lib/plane/client";
+import { canEditAreaScoped, canViewRecord } from "@/lib/auth/access";
+import { requireUser } from "@/lib/auth/dal";
 
 export const dynamic = "force-dynamic";
 
@@ -68,6 +72,10 @@ export default async function RegistroDetallePage({
   const record = getRecordByCode(code);
   if (!record) notFound();
 
+  const user = await requireUser();
+  if (!canViewRecord(record, user)) redirect("/mi-sgc");
+  const canEdit = canEditAreaScoped(record, user);
+
   const type = listRecordTypes().find((t) => t.id === record.type_id);
   const area = record.area_id ? listAreas().find((a) => a.id === record.area_id) : undefined;
   const history = listActivityLog(record.id);
@@ -80,9 +88,23 @@ export default async function RegistroDetallePage({
   const correctiveActions = relationships.filter((rel) => rel.direction === "from" && rel.other.type_id === "ac");
   const acSource = relationships.find((rel) => rel.direction === "to" && rel.label?.startsWith("Acción Correctiva de"));
 
+  // Escaladas pedidas por el usuario: Sugerencia → Oportunidad de Mejora,
+  // Queja/Reclamo → No Conformidad (ver `EscalarTab`).
+  const isSugerencia = type?.code === "S";
+  const isQuejaOReclamo = type?.code === "Q" || type?.code === "R";
+  const escalationTarget = isSugerencia
+    ? { code: "OM", id: "om", label: "Oportunidad de Mejora" }
+    : isQuejaOReclamo
+      ? { code: "NC", id: "nc", label: "No Conformidad" }
+      : null;
+  const escalatedRecords = escalationTarget
+    ? relationships.filter((rel) => rel.direction === "from" && rel.other.type_id === escalationTarget.id)
+    : [];
+
   const tabs: RecordTabDef[] = [{ key: "resumen", label: "Resumen" }];
   if (isNc) tabs.push({ key: "analisis", label: "Análisis y corrección" });
   if (isAc) tabs.push({ key: "verificacion", label: "Verificación y cierre" });
+  if (escalationTarget) tabs.push({ key: "escalar", label: `Vincular a ${escalationTarget.label}` });
   tabs.push({ key: "evidencias", label: `Evidencias${evidence.length ? ` (${evidence.length})` : ""}` });
   const relationsCount = relationships.length + riskLinks.length;
   tabs.push({ key: "relaciones", label: `Relaciones${relationsCount ? ` (${relationsCount})` : ""}` });
@@ -128,6 +150,12 @@ export default async function RegistroDetallePage({
 
       {activeTab === "resumen" && (
         <>
+          {estadoError && !isAc && (
+            <Card className="flex items-start gap-2 border-red-200 bg-red-50 p-4">
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-red-600" />
+              <p className="text-sm text-red-700">{estadoError}</p>
+            </Card>
+          )}
           <Card className="flex flex-col divide-y divide-border p-0">
             <div className="flex flex-col gap-1.5 p-5">
               <p className="text-xs font-semibold uppercase tracking-wide text-muted">¿Qué ocurrió?</p>
@@ -187,21 +215,28 @@ export default async function RegistroDetallePage({
           </Card>
 
           <Card className="flex flex-wrap items-end gap-3 p-4">
-            <form action={actualizarVencimientoAction} className="flex flex-wrap items-end gap-3">
-              <input type="hidden" name="code" value={record.code} />
-              <label className="flex flex-col gap-1.5">
+            {canEdit ? (
+              <form action={actualizarVencimientoAction} className="flex flex-wrap items-end gap-3">
+                <input type="hidden" name="code" value={record.code} />
+                <label className="flex flex-col gap-1.5">
+                  <span className="text-xs font-semibold uppercase tracking-wide text-muted">Vencimiento / compromiso</span>
+                  <input
+                    type="date"
+                    name="dueDate"
+                    defaultValue={record.due_date ?? ""}
+                    className="h-9 rounded-lg border border-border bg-white px-3 text-sm text-avenida-black focus:border-avenida-violet focus:outline-none focus:ring-2 focus:ring-avenida-violet/20"
+                  />
+                </label>
+                <Button type="submit" variant="secondary" size="sm">
+                  Guardar
+                </Button>
+              </form>
+            ) : (
+              <div className="flex flex-col gap-1">
                 <span className="text-xs font-semibold uppercase tracking-wide text-muted">Vencimiento / compromiso</span>
-                <input
-                  type="date"
-                  name="dueDate"
-                  defaultValue={record.due_date ?? ""}
-                  className="h-9 rounded-lg border border-border bg-white px-3 text-sm text-avenida-black focus:border-avenida-violet focus:outline-none focus:ring-2 focus:ring-avenida-violet/20"
-                />
-              </label>
-              <Button type="submit" variant="secondary" size="sm">
-                Guardar
-              </Button>
-            </form>
+                <span className="text-sm text-avenida-black">{record.due_date ?? "Sin definir"}</span>
+              </div>
+            )}
             {record.due_date && (
               <p className="text-xs text-muted">
                 {new Date(`${record.due_date}T00:00:00`) < new Date() && !["Cerrado", "Cerrada"].includes(record.status)
@@ -210,19 +245,57 @@ export default async function RegistroDetallePage({
               </p>
             )}
           </Card>
+
+          {!isAc && canEdit && (
+            <Card className="flex flex-wrap items-end gap-3 p-4">
+              <form action={cambiarEstadoAction} className="flex flex-wrap items-end gap-3">
+                <input type="hidden" name="code" value={record.code} />
+                <input type="hidden" name="tab" value="resumen" />
+                <label className="flex flex-col gap-1.5">
+                  <span className="text-xs font-semibold uppercase tracking-wide text-muted">Nuevo estado</span>
+                  <select
+                    name="status"
+                    defaultValue={record.status}
+                    className="h-9 rounded-lg border border-border bg-white px-3 text-sm text-avenida-black focus:border-avenida-violet focus:outline-none focus:ring-2 focus:ring-avenida-violet/20"
+                  >
+                    {GENERIC_STATUS_FLOW.map((status) => (
+                      <option key={status} value={status}>
+                        {status}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <Button type="submit" variant="secondary" size="sm">
+                  Actualizar estado
+                </Button>
+              </form>
+            </Card>
+          )}
         </>
       )}
 
-      {activeTab === "analisis" && isNc && <AnalisisTab record={record} correctiveActions={correctiveActions} />}
-
-      {activeTab === "verificacion" && isAc && (
-        <VerificacionTab record={record} source={acSource} estadoError={estadoError} />
+      {activeTab === "analisis" && isNc && (
+        <AnalisisTab record={record} correctiveActions={correctiveActions} canEdit={canEdit} />
       )}
 
-      {activeTab === "evidencias" && <EvidenciasTab record={record} evidence={evidence} />}
+      {activeTab === "verificacion" && isAc && (
+        <VerificacionTab record={record} source={acSource} estadoError={estadoError} canEdit={canEdit} />
+      )}
+
+      {activeTab === "escalar" && escalationTarget && (
+        <EscalarTab
+          record={record}
+          linkedRecords={escalatedRecords}
+          targetTypeCode={escalationTarget.code}
+          targetTypeLabel={escalationTarget.label}
+          canEdit={canEdit}
+        />
+      )}
+
+      {activeTab === "evidencias" && <EvidenciasTab record={record} evidence={evidence} canEdit={canEdit} />}
 
       {activeTab === "relaciones" && (
-        <RelacionesTab record={record} relationships={relationships} riskLinks={riskLinks} />
+        <RelacionesTab record={record} relationships={relationships} riskLinks={riskLinks} canEdit={canEdit} />
       )}
 
       {activeTab === "historial" && (

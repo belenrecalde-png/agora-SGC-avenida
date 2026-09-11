@@ -1,18 +1,23 @@
 import { MessageSquareWarning } from "lucide-react";
-import { PlaceholderPage } from "@/components/layout/placeholder-page";
+import { TipoRegistroView } from "@/components/gestion-calidad/tipo-registro-view";
+import { loadTipoRegistroData } from "@/lib/gestion-tipo";
+
+export const dynamic = "force-dynamic";
 
 export const metadata = {
   title: `Quejas | Ágora`,
 };
 
-export default function Page() {
+export default async function Page() {
+  const { records, types, areas } = await loadTipoRegistroData("Q");
   return (
-    <PlaceholderPage
-      icon={MessageSquareWarning}
+    <TipoRegistroView
       title="Quejas"
       description="Manifestaciones de insatisfacción sobre un servicio, proceso o atención, con posibilidad de vincularlas a una NC o AC."
-      phase="Fase 3 y 7"
-      sectionLabel="Gestión de Calidad"
+      icon={MessageSquareWarning}
+      records={records}
+      types={types}
+      areas={areas}
     />
   );
 }

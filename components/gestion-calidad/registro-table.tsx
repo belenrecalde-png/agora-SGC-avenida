@@ -29,10 +29,13 @@ export function RegistroTable({
   records,
   types,
   areas,
+  hideTypeFilter = false,
 }: {
   records: SgcRecord[];
   types: RecordType[];
   areas: Area[];
+  /** Pantallas por tipo (No Conformidades, Acciones Correctivas, etc.) ya vienen pre-filtradas a un solo tipo — mostrar el filtro/columna de tipo ahí es redundante. */
+  hideTypeFilter?: boolean;
 }) {
   const [query, setQuery] = useState("");
   const [typeFilter, setTypeFilter] = useState<string>("todos");
@@ -68,18 +71,20 @@ export function RegistroTable({
             className="h-10 w-full rounded-xl border border-border bg-white pl-9 pr-3 text-sm text-avenida-black placeholder:text-muted focus:border-avenida-violet focus:outline-none focus:ring-2 focus:ring-avenida-violet/20"
           />
         </div>
-        <select
-          value={typeFilter}
-          onChange={(event) => setTypeFilter(event.target.value)}
-          className="h-10 rounded-xl border border-border bg-white px-3 text-sm text-avenida-black focus:border-avenida-violet focus:outline-none focus:ring-2 focus:ring-avenida-violet/20"
-        >
-          <option value="todos">Todos los tipos</option>
-          {types.map((type) => (
-            <option key={type.id} value={type.id}>
-              {type.code} — {type.name}
-            </option>
-          ))}
-        </select>
+        {!hideTypeFilter && (
+          <select
+            value={typeFilter}
+            onChange={(event) => setTypeFilter(event.target.value)}
+            className="h-10 rounded-xl border border-border bg-white px-3 text-sm text-avenida-black focus:border-avenida-violet focus:outline-none focus:ring-2 focus:ring-avenida-violet/20"
+          >
+            <option value="todos">Todos los tipos</option>
+            {types.map((type) => (
+              <option key={type.id} value={type.id}>
+                {type.code} — {type.name}
+              </option>
+            ))}
+          </select>
+        )}
         <select
           value={areaFilter}
           onChange={(event) => setAreaFilter(event.target.value)}
@@ -109,7 +114,7 @@ export function RegistroTable({
               <thead>
                 <tr className="border-b border-border bg-avenida-violet-light/20 text-left text-xs text-muted">
                   <th className="px-4 py-3 font-medium">Código</th>
-                  <th className="px-4 py-3 font-medium">Tipo</th>
+                  {!hideTypeFilter && <th className="px-4 py-3 font-medium">Tipo</th>}
                   <th className="px-4 py-3 font-medium">Título</th>
                   <th className="px-4 py-3 font-medium">Área</th>
                   <th className="px-4 py-3 font-medium">Reportado por</th>
@@ -132,9 +137,11 @@ export function RegistroTable({
                           {record.code}
                         </Link>
                       </td>
-                      <td className="px-4 py-3">
-                        {type && <Badge tone={type.color as BadgeTone}>{type.code}</Badge>}
-                      </td>
+                      {!hideTypeFilter && (
+                        <td className="px-4 py-3">
+                          {type && <Badge tone={type.color as BadgeTone}>{type.code}</Badge>}
+                        </td>
+                      )}
                       <td className="max-w-[240px] truncate px-4 py-3 text-avenida-black">{record.title}</td>
                       <td className="px-4 py-3 text-muted">{area?.name ?? "Sin definir"}</td>
                       <td className="px-4 py-3 text-muted">{record.reporter_name}</td>

@@ -5,14 +5,28 @@ import { revalidatePath } from "next/cache";
 import {
   createRecordFromPlaneTicket,
   dismissPlaneTicket,
+  getPlaneProjectMappingByProjectId,
   linkRecordToPlaneTicket,
   undoPlaneTicketDismissal,
 } from "@/lib/db/queries";
 import { getWorkItemUrl } from "@/lib/plane/client";
+import { hasFullAreaAccess, requireTicketsPlaneAccess } from "@/lib/auth/access";
 
 function refreshTicketsPlaneScreens() {
   revalidatePath("/gestion-calidad/tickets-plane");
   revalidatePath("/gestion-calidad/registro");
+}
+
+/** Mismo chequeo que las páginas de tipificar/vincular — gatea también la Server Action, no solo la pantalla. */
+async function requireTicketProjectAccess(planeProjectId: string) {
+  const user = await requireTicketsPlaneAccess();
+  if (!hasFullAreaAccess(user.role)) {
+    const mapping = getPlaneProjectMappingByProjectId(planeProjectId);
+    if (mapping?.area_id !== user.area_id) {
+      throw new Error("No tenés permiso sobre este proyecto de Plane — no pertenece a tu área.");
+    }
+  }
+  return user;
 }
 
 function readTicketRefs(formData: FormData) {
@@ -41,6 +55,7 @@ function readTicketRefs(formData: FormData) {
  */
 export async function tipificarTicketAction(formData: FormData): Promise<void> {
   const ticket = readTicketRefs(formData);
+  await requireTicketProjectAccess(ticket.planeProjectId);
 
   const typeCode = String(formData.get("typeCode") ?? "").trim();
   const title = String(formData.get("title") ?? "").trim();
@@ -86,6 +101,7 @@ export async function tipificarTicketAction(formData: FormData): Promise<void> {
 /** "Vincular": asocia el ticket a un registro del SGC que ya existe (por código). */
 export async function vincularTicketAction(formData: FormData): Promise<void> {
   const ticket = readTicketRefs(formData);
+  await requireTicketProjectAccess(ticket.planeProjectId);
   const recordCode = String(formData.get("recordCode") ?? "").trim();
 
   if (!recordCode) {
@@ -111,6 +127,7 @@ export async function descartarTicketAction(formData: FormData): Promise<void> {
   const planeSequenceId = String(formData.get("planeSequenceId") ?? "").trim() || null;
   const reason = String(formData.get("reason") ?? "").trim() || null;
   if (!planeProjectId || !planeWorkItemId) return;
+  await requireTicketProjectAccess(planeProjectId);
 
   dismissPlaneTicket({ planeProjectId, planeWorkItemId, planeSequenceId, reason });
   refreshTicketsPlaneScreens();
@@ -120,6 +137,7 @@ export async function descartarTicketAction(formData: FormData): Promise<void> {
 export async function revertirDescarteAction(formData: FormData): Promise<void> {
   const planeWorkItemId = String(formData.get("planeWorkItemId") ?? "").trim();
   if (!planeWorkItemId) return;
+  await requireTicketsPlaneAccess();
 
   undoPlaneTicketDismissal(planeWorkItemId);
   refreshTicketsPlaneScreens();

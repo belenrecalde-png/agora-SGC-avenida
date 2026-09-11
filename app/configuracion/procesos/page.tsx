@@ -11,7 +11,6 @@ export default function Page() {
       icon={Workflow}
       title="Procesos"
       description="Alta y edición de los procesos del mapa de procesos y sus responsables."
-      phase="Fase 10"
       sectionLabel="Configuración"
     />
   );

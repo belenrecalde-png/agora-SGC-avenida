@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { Card } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+import { SubmitButton } from "@/components/ui/submit-button";
 import { listAreas, listRecordTypes } from "@/lib/db/queries";
 import { createReportAction } from "@/lib/actions/reports";
 import { getCurrentUser } from "@/lib/auth/dal";
@@ -200,9 +200,9 @@ export default async function NuevoReportePage({
             <textarea id="comments" name="comments" rows={3} className={FIELD_CLASS} />
           </div>
 
-          <Button type="submit" className="w-fit">
+          <SubmitButton className="w-fit" pendingText="Enviando…">
             Enviar reporte
-          </Button>
+          </SubmitButton>
         </form>
       </Card>
     </div>

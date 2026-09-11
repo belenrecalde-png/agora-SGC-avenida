@@ -13,7 +13,7 @@ import {
 import { cambiarEstadoRiesgoAction, guardarValoracionResidualAction } from "@/lib/actions/risks";
 
 const inputClass =
-  "w-full rounded-xl border border-border bg-white px-3 py-2 text-sm text-avenida-black placeholder:text-muted focus:border-avenida-violet focus:outline-none focus:ring-2 focus:ring-avenida-violet/20";
+  "w-full rounded-xl border border-border bg-white px-3 py-2 text-sm text-avenida-black placeholder:text-muted focus:border-avenida-violet focus:outline-none focus:ring-2 focus:ring-avenida-violet/20 disabled:cursor-not-allowed disabled:bg-avenida-gray/20 disabled:text-muted";
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
@@ -24,7 +24,15 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
   );
 }
 
-export function ValoracionTab({ risk, estadoError }: { risk: SgcRisk; estadoError?: string }) {
+export function ValoracionTab({
+  risk,
+  estadoError,
+  canEdit = true,
+}: {
+  risk: SgcRisk;
+  estadoError?: string;
+  canEdit?: boolean;
+}) {
   const initialScore = getRiskScore(risk.probability_initial, risk.impact_initial);
   const initialBand = getRiskBand(risk.kind, initialScore);
   const residualScore = getRiskScore(risk.probability_residual, risk.impact_residual);
@@ -62,6 +70,7 @@ export function ValoracionTab({ risk, estadoError }: { risk: SgcRisk; estadoErro
         </div>
         <form action={guardarValoracionResidualAction} className="flex flex-col gap-4">
           <input type="hidden" name="code" value={risk.code} />
+          <fieldset disabled={!canEdit} className="contents">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field label="Probabilidad residual (1-3)">
               <select name="probabilityResidual" defaultValue={risk.probability_residual ?? ""} className={inputClass}>
@@ -85,11 +94,16 @@ export function ValoracionTab({ risk, estadoError }: { risk: SgcRisk; estadoErro
           <Field label="Verificación">
             <textarea name="verification" defaultValue={risk.verification ?? ""} rows={3} className={inputClass} />
           </Field>
-          <div>
-            <Button type="submit" size="sm">
-              Guardar valoración residual
-            </Button>
-          </div>
+          </fieldset>
+          {canEdit ? (
+            <div>
+              <Button type="submit" size="sm">
+                Guardar valoración residual
+              </Button>
+            </div>
+          ) : (
+            <p className="text-xs text-muted">Solo lectura — tu rol no permite editar este ítem.</p>
+          )}
         </form>
       </Card>
 
@@ -108,21 +122,23 @@ export function ValoracionTab({ risk, estadoError }: { risk: SgcRisk; estadoErro
             </p>
           )}
         </div>
-        <form action={cambiarEstadoRiesgoAction} className="flex flex-wrap items-end gap-3">
-          <input type="hidden" name="code" value={risk.code} />
-          <Field label="Nuevo estado">
-            <select name="status" defaultValue={risk.status} className={inputClass}>
-              {statusFlow.map((status) => (
-                <option key={status} value={status}>
-                  {status}
-                </option>
-              ))}
-            </select>
-          </Field>
-          <Button type="submit" variant="secondary" size="sm">
-            Actualizar estado
-          </Button>
-        </form>
+        {canEdit && (
+          <form action={cambiarEstadoRiesgoAction} className="flex flex-wrap items-end gap-3">
+            <input type="hidden" name="code" value={risk.code} />
+            <Field label="Nuevo estado">
+              <select name="status" defaultValue={risk.status} className={inputClass}>
+                {statusFlow.map((status) => (
+                  <option key={status} value={status}>
+                    {status}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Button type="submit" variant="secondary" size="sm">
+              Actualizar estado
+            </Button>
+          </form>
+        )}
         {risk.closed_at && (
           <p className="text-xs text-muted">
             Cerrado el {new Date(risk.closed_at).toLocaleDateString("es-AR", { day: "2-digit", month: "short", year: "numeric" })}.

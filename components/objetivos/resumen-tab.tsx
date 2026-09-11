@@ -5,7 +5,7 @@ import { OBJECTIVE_STATUS_FLOW, type Area, type SgcIndicator, type SgcObjective 
 import { cambiarEstadoObjetivoAction, guardarObjetivoAction } from "@/lib/actions/objectives";
 
 const inputClass =
-  "w-full rounded-xl border border-border bg-white px-3 py-2 text-sm text-avenida-black placeholder:text-muted focus:border-avenida-violet focus:outline-none focus:ring-2 focus:ring-avenida-violet/20";
+  "w-full rounded-xl border border-border bg-white px-3 py-2 text-sm text-avenida-black placeholder:text-muted focus:border-avenida-violet focus:outline-none focus:ring-2 focus:ring-avenida-violet/20 disabled:cursor-not-allowed disabled:bg-avenida-gray/20 disabled:text-muted";
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
@@ -20,16 +20,19 @@ export function ResumenTab({
   objective,
   areas,
   indicators,
+  canEdit = true,
 }: {
   objective: SgcObjective;
   areas: Area[];
   indicators: SgcIndicator[];
+  canEdit?: boolean;
 }) {
   return (
     <div className="flex flex-col gap-6">
       <Card className="flex flex-col gap-4 p-5">
         <form action={guardarObjetivoAction} className="flex flex-col gap-4">
           <input type="hidden" name="code" value={objective.code} />
+          <fieldset disabled={!canEdit} className="contents">
 
           <Field label="Objetivo">
             <textarea name="title" defaultValue={objective.title} required rows={2} className={inputClass} />
@@ -79,6 +82,15 @@ export function ResumenTab({
             </Field>
           </div>
 
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <Field label="Indicador (texto libre)">
+              <input name="indicatorText" defaultValue={objective.indicator_text ?? ""} className={inputClass} />
+            </Field>
+            <Field label="Principio de la Política de Calidad">
+              <input name="policyPrinciple" defaultValue={objective.policy_principle ?? ""} className={inputClass} />
+            </Field>
+          </div>
+
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-4">
             <Field label="Fecha de inicio">
               <input type="date" name="startDate" defaultValue={objective.start_date ?? ""} className={inputClass} />
@@ -116,31 +128,38 @@ export function ResumenTab({
             <textarea name="observations" defaultValue={objective.observations ?? ""} rows={2} className={inputClass} />
           </Field>
 
-          <div>
-            <Button type="submit" size="sm">
-              Guardar
-            </Button>
-          </div>
+          </fieldset>
+          {canEdit ? (
+            <div>
+              <Button type="submit" size="sm">
+                Guardar
+              </Button>
+            </div>
+          ) : (
+            <p className="text-xs text-muted">Solo lectura — tu rol no permite editar este ítem.</p>
+          )}
         </form>
       </Card>
 
-      <Card className="flex flex-wrap items-end gap-3 p-4">
-        <form action={cambiarEstadoObjetivoAction} className="flex flex-wrap items-end gap-3">
-          <input type="hidden" name="code" value={objective.code} />
-          <Field label="Estado">
-            <select name="status" defaultValue={objective.status} className={inputClass}>
-              {OBJECTIVE_STATUS_FLOW.map((status) => (
-                <option key={status} value={status}>
-                  {status}
-                </option>
-              ))}
-            </select>
-          </Field>
-          <Button type="submit" variant="secondary" size="sm">
-            Actualizar estado
-          </Button>
-        </form>
-      </Card>
+      {canEdit && (
+        <Card className="flex flex-wrap items-end gap-3 p-4">
+          <form action={cambiarEstadoObjetivoAction} className="flex flex-wrap items-end gap-3">
+            <input type="hidden" name="code" value={objective.code} />
+            <Field label="Estado">
+              <select name="status" defaultValue={objective.status} className={inputClass}>
+                {OBJECTIVE_STATUS_FLOW.map((status) => (
+                  <option key={status} value={status}>
+                    {status}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Button type="submit" variant="secondary" size="sm">
+              Actualizar estado
+            </Button>
+          </form>
+        </Card>
+      )}
     </div>
   );
 }

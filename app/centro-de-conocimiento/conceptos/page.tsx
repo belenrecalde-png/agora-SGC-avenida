@@ -40,11 +40,8 @@ export default function ConceptosPage() {
       <div className="flex flex-col gap-2">
         <p className="text-sm text-avenida-black">
           Glosario vivo de Calidad: qué es cada concepto, en términos simples, con un ejemplo de Avenida+, por qué
-          importa y qué hacer si lo detectás.
+          importa y qué hacer si lo detectás. Basado en el Diccionario Corporativo de Términos del Sistema de Gestión.
         </p>
-        <Badge tone="amber" className="w-fit">
-          Borrador — contenido a revisar y ajustar por el equipo de Calidad
-        </Badge>
       </div>
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center">

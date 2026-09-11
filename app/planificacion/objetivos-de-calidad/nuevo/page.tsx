@@ -1,9 +1,10 @@
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { Card } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+import { SubmitButton } from "@/components/ui/submit-button";
 import { listAreas, listIndicators } from "@/lib/db/queries";
 import { crearObjetivoAction } from "@/lib/actions/objectives";
+import { requireCreateAccess } from "@/lib/auth/access";
 
 export const dynamic = "force-dynamic";
 
@@ -15,7 +16,8 @@ const FIELD_CLASS =
   "w-full rounded-xl border border-border bg-white px-3 py-2 text-sm text-avenida-black placeholder:text-muted focus:border-avenida-violet focus:outline-none focus:ring-2 focus:ring-avenida-violet/20";
 const LABEL_CLASS = "text-sm font-medium text-avenida-black";
 
-export default function NuevoObjetivoPage() {
+export default async function NuevoObjetivoPage() {
+  await requireCreateAccess("/planificacion/objetivos-de-calidad");
   const areas = listAreas({ onlyActive: true });
   const indicators = listIndicators();
 
@@ -75,6 +77,27 @@ export default function NuevoObjetivoPage() {
                   </option>
                 ))}
               </select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+            <div className="flex flex-col gap-1.5">
+              <label htmlFor="indicatorText" className={LABEL_CLASS}>
+                Indicador (texto libre, opcional)
+              </label>
+              <input
+                id="indicatorText"
+                name="indicatorText"
+                type="text"
+                placeholder="Si no coincide con ningún indicador cargado en el portal"
+                className={FIELD_CLASS}
+              />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <label htmlFor="policyPrinciple" className={LABEL_CLASS}>
+                Principio de la Política de Calidad (opcional)
+              </label>
+              <input id="policyPrinciple" name="policyPrinciple" type="text" className={FIELD_CLASS} />
             </div>
           </div>
 
@@ -150,9 +173,9 @@ export default function NuevoObjetivoPage() {
             <input id="processName" name="processName" type="text" className={FIELD_CLASS} />
           </div>
 
-          <Button type="submit" className="w-fit">
+          <SubmitButton className="w-fit" pendingText="Guardando…">
             Guardar
-          </Button>
+          </SubmitButton>
         </form>
       </Card>
     </div>
