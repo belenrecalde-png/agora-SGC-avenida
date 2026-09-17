@@ -13,6 +13,7 @@ import {
   stripHtml,
 } from "@/lib/plane/client";
 import { tipificarTicketAction } from "@/lib/actions/plane-tickets";
+import { resolveSuggestedTypeCode } from "@/lib/plane/tickets";
 import { hasFullAreaAccess, requireTicketsPlaneAccess } from "@/lib/auth/access";
 
 export const dynamic = "force-dynamic";
@@ -90,9 +91,8 @@ export default async function TipificarTicketPage({
   if (!hasFullAreaAccess(user.role) && mapping?.area_id !== user.area_id) {
     redirect("/gestion-calidad/tickets-plane");
   }
-  const suggestedType = mapping?.auto_type_code && types.some((t) => t.code === mapping.auto_type_code)
-    ? mapping.auto_type_code
-    : types[0]?.code;
+  const validTypeCodes = new Set(types.map((t) => t.code));
+  const suggestedType = resolveSuggestedTypeCode(ticket.name, mapping, validTypeCodes) ?? types[0]?.code;
   const suggestedAreaId = mapping?.area_id && areas.some((a) => a.id === mapping.area_id) ? mapping.area_id : "";
 
   return (

@@ -96,6 +96,10 @@ export type PlaneProjectMapping = {
   // Código de tipo SGC (record_types.code) sugerido para pre-cargar al
   // tipificar un ticket de este proyecto — ver `app/.../tipificar/page.tsx`.
   auto_type_code: string | null;
+  // Variante de `auto_type_code` por tag en el título del ticket (ej. "[Bug]"
+  // → NC, "[Mejora]" → OM) — si el título no matchea ningún tag, se usa
+  // `auto_type_code` como sugerencia. Ver `resolveSuggestedTypeCode`.
+  title_tag_types: { tag: string; typeCode: string }[];
   active: boolean;
   created_at: string;
   updated_at: string;
@@ -219,6 +223,20 @@ function rowToRecord(row: Record<string, unknown>): SgcRecord {
   };
 }
 
+function parseTitleTagTypes(raw: unknown): { tag: string; typeCode: string }[] {
+  if (typeof raw !== "string" || !raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter(
+      (entry): entry is { tag: string; typeCode: string } =>
+        typeof entry?.tag === "string" && typeof entry?.typeCode === "string",
+    );
+  } catch {
+    return [];
+  }
+}
+
 function rowToPlaneProjectMapping(row: Record<string, unknown>): PlaneProjectMapping {
   return {
     id: row.id as string,
@@ -227,6 +245,7 @@ function rowToPlaneProjectMapping(row: Record<string, unknown>): PlaneProjectMap
     plane_project_name: (row.plane_project_name as string) ?? null,
     import_label: (row.import_label as string) ?? null,
     auto_type_code: (row.auto_type_code as string) ?? null,
+    title_tag_types: parseTitleTagTypes(row.title_tag_types),
     active: toBool(row.active),
     created_at: row.created_at as string,
     updated_at: row.updated_at as string,
@@ -412,6 +431,25 @@ export function countRecords(): number {
   return row?.count ?? 0;
 }
 
+/**
+ * Borra un registro (NC/AC/OM/Q/R/S/AP) y todo lo que cuelga de él —
+ * `records` no tiene borrado lógico como `areas`/`record_types` porque acá sí
+ * hace falta que desaparezca de verdad (a pedido del usuario, solo para
+ * `admin`, ver `requireRole(["admin"])` en `eliminarRegistroAction`).
+ * SQLite no tiene FK con cascada declarada en este esquema, así que se
+ * limpian a mano las tablas que referencian `record_id`/`from_record_id`/
+ * `to_record_id`: `activity_log`, `sgc_evidence`, `sgc_relationships` (en
+ * ambas direcciones) y `sgc_risk_relationships`. `plane_sync_logs` queda
+ * igual — es un log histórico con `record_id` nullable, no una relación viva.
+ */
+export function deleteRecord(id: string): void {
+  db.prepare("DELETE FROM sgc_risk_relationships WHERE record_id = ?").run(id);
+  db.prepare("DELETE FROM sgc_relationships WHERE from_record_id = ? OR to_record_id = ?").run(id, id);
+  db.prepare("DELETE FROM sgc_evidence WHERE record_id = ?").run(id);
+  db.prepare("DELETE FROM activity_log WHERE record_id = ?").run(id);
+  db.prepare("DELETE FROM records WHERE id = ?").run(id);
+}
+
 /** Registros que ya tienen un work item de Plane asociado — para refrescar su estado. */
 export function listRecordsWithPlaneTicket(): SgcRecord[] {
   return db
@@ -518,22 +556,34 @@ export function upsertPlaneProjectMapping(input: {
   planeProjectName?: string | null;
   importLabel?: string | null;
   autoTypeCode?: string | null;
+  titleTagTypes?: { tag: string; typeCode: string }[];
 }): PlaneProjectMapping {
   const existing = getPlaneProjectMappingByArea(input.areaId);
   const now = new Date().toISOString();
   const importLabel = input.importLabel?.trim() || null;
   const autoTypeCode = input.autoTypeCode?.trim() || null;
+  const titleTagTypes = input.titleTagTypes ?? [];
+  const titleTagTypesJson = titleTagTypes.length ? JSON.stringify(titleTagTypes) : null;
 
   if (existing) {
     db.prepare(
-      "UPDATE plane_project_mappings SET plane_project_id = ?, plane_project_name = ?, import_label = ?, auto_type_code = ?, active = 1, updated_at = ? WHERE id = ?",
-    ).run(input.planeProjectId, input.planeProjectName ?? null, importLabel, autoTypeCode, now, existing.id);
+      "UPDATE plane_project_mappings SET plane_project_id = ?, plane_project_name = ?, import_label = ?, auto_type_code = ?, title_tag_types = ?, active = 1, updated_at = ? WHERE id = ?",
+    ).run(
+      input.planeProjectId,
+      input.planeProjectName ?? null,
+      importLabel,
+      autoTypeCode,
+      titleTagTypesJson,
+      now,
+      existing.id,
+    );
     return {
       ...existing,
       plane_project_id: input.planeProjectId,
       plane_project_name: input.planeProjectName ?? null,
       import_label: importLabel,
       auto_type_code: autoTypeCode,
+      title_tag_types: titleTagTypes,
       active: true,
       updated_at: now,
     };
@@ -541,8 +591,18 @@ export function upsertPlaneProjectMapping(input: {
 
   const id = randomUUID();
   db.prepare(
-    "INSERT INTO plane_project_mappings (id, area_id, plane_project_id, plane_project_name, import_label, auto_type_code, active, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)",
-  ).run(id, input.areaId, input.planeProjectId, input.planeProjectName ?? null, importLabel, autoTypeCode, now, now);
+    "INSERT INTO plane_project_mappings (id, area_id, plane_project_id, plane_project_name, import_label, auto_type_code, title_tag_types, active, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?)",
+  ).run(
+    id,
+    input.areaId,
+    input.planeProjectId,
+    input.planeProjectName ?? null,
+    importLabel,
+    autoTypeCode,
+    titleTagTypesJson,
+    now,
+    now,
+  );
   return {
     id,
     area_id: input.areaId,
@@ -550,6 +610,7 @@ export function upsertPlaneProjectMapping(input: {
     plane_project_name: input.planeProjectName ?? null,
     import_label: importLabel,
     auto_type_code: autoTypeCode,
+    title_tag_types: titleTagTypes,
     active: true,
     created_at: now,
     updated_at: now,

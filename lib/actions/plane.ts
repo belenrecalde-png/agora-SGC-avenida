@@ -16,18 +16,41 @@ function refreshPlaneScreens() {
   revalidatePath("/gestion-calidad/tickets-plane");
 }
 
+/**
+ * Parsea el textarea "Tags de título → tipo" (una línea por tag, formato
+ * `[Bug]=NC`) al array que espera `upsertPlaneProjectMapping`. Líneas vacías
+ * o sin "=" se ignoran en vez de tirar error — es más importante no bloquear
+ * el guardado del resto del mapeo que validar el formato acá.
+ */
+function parseTitleTagTypesInput(raw: string): { tag: string; typeCode: string }[] {
+  return raw
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => {
+      const separatorIndex = line.indexOf("=");
+      if (separatorIndex === -1) return null;
+      const tag = line.slice(0, separatorIndex).trim();
+      const typeCode = line.slice(separatorIndex + 1).trim().toUpperCase();
+      if (!tag || !typeCode) return null;
+      return { tag, typeCode };
+    })
+    .filter((entry): entry is { tag: string; typeCode: string } => entry !== null);
+}
+
 export async function upsertPlaneMappingAction(formData: FormData): Promise<void> {
   const areaId = String(formData.get("areaId") ?? "").trim();
   const planeProjectId = String(formData.get("planeProjectId") ?? "").trim();
   const planeProjectName = String(formData.get("planeProjectName") ?? "").trim() || null;
   const importLabel = String(formData.get("importLabel") ?? "").trim() || null;
   const autoTypeCode = String(formData.get("autoTypeCode") ?? "").trim() || null;
+  const titleTagTypes = parseTitleTagTypesInput(String(formData.get("titleTagTypes") ?? ""));
 
   if (!areaId || !planeProjectId) {
     throw new Error("Hace falta elegir un área y cargar el ID de proyecto de Plane.");
   }
 
-  upsertPlaneProjectMapping({ areaId, planeProjectId, planeProjectName, importLabel, autoTypeCode });
+  upsertPlaneProjectMapping({ areaId, planeProjectId, planeProjectName, importLabel, autoTypeCode, titleTagTypes });
   refreshPlaneScreens();
 }
 

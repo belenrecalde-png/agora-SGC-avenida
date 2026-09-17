@@ -17,6 +17,7 @@ import {
   addEvidence,
   createCorrectiveActionForRecord,
   createEscalatedRecord,
+  deleteRecord,
   getRecordByCode,
   linkExistingRecordRelationship,
   updateRecordAnalysis,
@@ -25,6 +26,7 @@ import {
   updateRecordStatus,
 } from "@/lib/db/queries";
 import { requireEditAccess } from "@/lib/auth/access";
+import { requireRole } from "@/lib/auth/dal";
 
 function requireRecord(code: string) {
   const record = getRecordByCode(code);
@@ -188,4 +190,20 @@ export async function actualizarVencimientoAction(formData: FormData): Promise<v
 
   updateRecordDueDate(record.id, dueDate);
   revalidatePath(`/gestion-calidad/registro/${code}`);
+}
+
+/**
+ * Borra un registro (NC/AC/OM/etc) — a pedido del usuario, acción exclusiva
+ * de `admin` (ni siquiera `calidad`, a diferencia del resto de esta pantalla
+ * que usa `requireEditAccess`). Redirige al listado porque la página de
+ * detalle del código borrado ya no existe.
+ */
+export async function eliminarRegistroAction(formData: FormData): Promise<void> {
+  await requireRole(["admin"]);
+  const code = String(formData.get("code") ?? "").trim();
+  const record = requireRecord(code);
+
+  deleteRecord(record.id);
+  revalidatePath("/gestion-calidad/registro");
+  redirect("/gestion-calidad/registro");
 }

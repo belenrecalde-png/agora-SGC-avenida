@@ -129,6 +129,11 @@ export default function PlanePage() {
                           Pre-carga como {types.find((t) => t.code === mapping.auto_type_code)?.name ?? mapping.auto_type_code}
                         </Badge>
                       )}
+                      {mapping.title_tag_types.map((entry) => (
+                        <Badge key={entry.tag} tone="blue">
+                          &ldquo;{entry.tag}&rdquo; → {types.find((t) => t.code === entry.typeCode)?.name ?? entry.typeCode}
+                        </Badge>
+                      ))}
                       {!mapping.active && <Badge tone="gray">Mapeo desactivado</Badge>}
                     </div>
                   </div>
@@ -224,6 +229,23 @@ export default function PlanePage() {
             <p className="text-xs text-muted">
               Pre-carga el tipo y el área en la pantalla de &ldquo;Tipificar&rdquo; para los tickets de este
               proyecto — sigue haciendo falta confirmar y guardar a mano, no crea el registro solo.
+            </p>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label htmlFor="titleTagTypes" className="text-xs font-medium text-avenida-black">
+              Tags de título → tipo (opcional)
+            </label>
+            <textarea
+              id="titleTagTypes"
+              name="titleTagTypes"
+              rows={3}
+              placeholder={"[Bug]=NC\n[Mejora]=OM"}
+              className="rounded-xl border border-border bg-white px-3 py-2 text-sm text-avenida-black placeholder:text-muted focus:border-avenida-violet focus:outline-none focus:ring-2 focus:ring-avenida-violet/20"
+            />
+            <p className="text-xs text-muted">
+              Un tag por línea, formato <code>tag=CODIGO</code>. Si el título del ticket contiene ese tag
+              (sin importar mayúsculas), se sugiere ese tipo al tipificar — gana el primero que matchee. Un
+              ticket que no matchea ningún tag usa el &ldquo;Tipo sugerido&rdquo; de arriba, si hay uno cargado.
             </p>
           </div>
           <SubmitButton className="self-start" pendingText="Guardando…">

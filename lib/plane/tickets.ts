@@ -56,6 +56,27 @@ export type TicketPlaneRow = {
   dismissedReason?: string | null;
 };
 
+/**
+ * Sugiere el tipo SGC para un ticket a partir de los tags configurados en el
+ * mapeo del proyecto (`title_tag_types`, ej. "[Bug]" → NC): el primer tag que
+ * aparezca en el título (sin distinguir mayúsculas) gana. Si ninguno matchea,
+ * cae a `auto_type_code` (sugerencia fija por proyecto, como antes). Ambas
+ * fuentes se validan contra los tipos activos por si se borró/desactivó uno.
+ */
+export function resolveSuggestedTypeCode(
+  title: string,
+  mapping: { auto_type_code: string | null; title_tag_types: { tag: string; typeCode: string }[] } | undefined,
+  validTypeCodes: Set<string>,
+): string | undefined {
+  if (!mapping) return undefined;
+  const lowerTitle = title.toLowerCase();
+  const byTag = mapping.title_tag_types.find(
+    (entry) => validTypeCodes.has(entry.typeCode) && lowerTitle.includes(entry.tag.toLowerCase()),
+  );
+  if (byTag) return byTag.typeCode;
+  return mapping.auto_type_code && validTypeCodes.has(mapping.auto_type_code) ? mapping.auto_type_code : undefined;
+}
+
 export type TicketsPlaneResult = {
   configured: boolean;
   projects: { id: string; name: string; importLabel: string | null }[];

@@ -10,6 +10,7 @@ import { VerificacionTab } from "@/components/gestion-calidad/verificacion-tab";
 import { EscalarTab } from "@/components/gestion-calidad/escalar-tab";
 import { EvidenciasTab } from "@/components/gestion-calidad/evidencias-tab";
 import { RelacionesTab } from "@/components/gestion-calidad/relaciones-tab";
+import { DeleteRecordButton } from "@/components/gestion-calidad/delete-record-button";
 import { actualizarVencimientoAction, cambiarEstadoAction } from "@/lib/actions/gestion";
 import {
   GENERIC_STATUS_FLOW,
@@ -144,6 +145,7 @@ export default async function RegistroDetallePage({
             {record.code} · Reportado por {record.reporter_name} el {formatDateTime(record.created_at)}
           </p>
         </div>
+        {user.role === "admin" && <DeleteRecordButton code={record.code} title={record.title} />}
       </div>
 
       <RecordTabs code={record.code} active={activeTab} tabs={tabs} />

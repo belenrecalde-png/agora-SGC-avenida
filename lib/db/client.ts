@@ -411,9 +411,15 @@ function ensureActivityLogActorColumns(db: DatabaseSync) {
 // solo, sigue exigiendo el click de "Crear registro y vincular" (a propósito,
 // ver la nota de `tipificarTicketAction`), pero evita elegir tipo y área a
 // mano cada vez que ya se sabe de antemano qué va a ser.
+// `title_tag_types`: variante de `auto_type_code` por tag en vez de fija por
+// proyecto — JSON con pares tag/tipo (ej. `[{"tag":"[Bug]","typeCode":"NC"}]`)
+// para que un ticket con "[Bug]" en el título sugiera NC y uno con "[Mejora]"
+// sugiera OM, dentro del mismo proyecto. Si un ticket no matchea ningún tag,
+// se cae a `auto_type_code` como hasta ahora.
 const PLANE_MAPPING_LABEL_COLUMNS: { name: string; ddl: string }[] = [
   { name: "import_label", ddl: "ALTER TABLE plane_project_mappings ADD COLUMN import_label TEXT" },
   { name: "auto_type_code", ddl: "ALTER TABLE plane_project_mappings ADD COLUMN auto_type_code TEXT" },
+  { name: "title_tag_types", ddl: "ALTER TABLE plane_project_mappings ADD COLUMN title_tag_types TEXT" },
 ];
 
 function ensurePlaneMappingLabelColumn(db: DatabaseSync) {
