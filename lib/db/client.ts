@@ -415,11 +415,18 @@ function ensureActivityLogActorColumns(db: DatabaseSync) {
 // proyecto — JSON con pares tag/tipo (ej. `[{"tag":"[Bug]","typeCode":"NC"}]`)
 // para que un ticket con "[Bug]" en el título sugiera NC y uno con "[Mejora]"
 // sugiera OM, dentro del mismo proyecto. Si un ticket no matchea ningún tag,
-// se cae a `auto_type_code` como hasta ahora.
+// se cae a `label_types` y después a `auto_type_code`, en ese orden.
+// `label_types`: mismo concepto que `title_tag_types` pero por etiqueta real
+// de Plane en vez de texto en el título — JSON con pares etiqueta/tipo (ej.
+// `[{"label":"Mejora","typeCode":"OM"}]`). Reemplaza a la vieja `import_label`
+// (una sola etiqueta, sin tipo asociado): ahora se pueden cargar varias, cada
+// una con su propio tipo sugerido. `import_label` queda en el esquema por
+// compatibilidad con datos viejos, pero ya no se lee ni se escribe.
 const PLANE_MAPPING_LABEL_COLUMNS: { name: string; ddl: string }[] = [
   { name: "import_label", ddl: "ALTER TABLE plane_project_mappings ADD COLUMN import_label TEXT" },
   { name: "auto_type_code", ddl: "ALTER TABLE plane_project_mappings ADD COLUMN auto_type_code TEXT" },
   { name: "title_tag_types", ddl: "ALTER TABLE plane_project_mappings ADD COLUMN title_tag_types TEXT" },
+  { name: "label_types", ddl: "ALTER TABLE plane_project_mappings ADD COLUMN label_types TEXT" },
 ];
 
 function ensurePlaneMappingLabelColumn(db: DatabaseSync) {

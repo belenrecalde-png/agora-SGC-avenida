@@ -88,17 +88,20 @@ export type PlaneProjectMapping = {
   area_id: string;
   plane_project_id: string;
   plane_project_name: string | null;
-  // Etiqueta opcional de Plane: si está cargada, "Tickets Plane" solo lista
-  // como pendientes de tipificar los work items que tengan esta etiqueta —
-  // sin ella, se listan todos los work items del proyecto (comportamiento
-  // original de la Fase 6).
-  import_label: string | null;
   // Código de tipo SGC (record_types.code) sugerido para pre-cargar al
-  // tipificar un ticket de este proyecto — ver `app/.../tipificar/page.tsx`.
+  // tipificar un ticket de este proyecto cuando no matchea ningún tag ni
+  // etiqueta de abajo — ver `app/.../tipificar/page.tsx`.
   auto_type_code: string | null;
-  // Variante de `auto_type_code` por tag en el título del ticket (ej. "[Bug]"
-  // → NC, "[Mejora]" → OM) — si el título no matchea ningún tag, se usa
-  // `auto_type_code` como sugerencia. Ver `resolveSuggestedTypeCode`.
+  // Etiquetas de Plane → tipo (ej. "Mejora" → OM): si el work item tiene
+  // alguna de estas etiquetas en Plane, entra como pendiente en "Tickets
+  // Plane" (sin ninguna cargada acá ni en `title_tag_types`, entran todos los
+  // work items del proyecto) y, al tipificar, se sugiere el tipo asociado —
+  // salvo que un tag de título matchee primero (`title_tag_types` prevalece).
+  // Ver `resolveSuggestedTypeCode`.
+  label_types: { label: string; typeCode: string }[];
+  // Mismo concepto que `label_types` pero por texto en el título en vez de
+  // etiqueta real de Plane (ej. "[Bug]" → NC, "[Mejora]" → OM) — tiene
+  // prioridad sobre `label_types` si un ticket matchea ambos.
   title_tag_types: { tag: string; typeCode: string }[];
   active: boolean;
   created_at: string;
@@ -237,14 +240,28 @@ function parseTitleTagTypes(raw: unknown): { tag: string; typeCode: string }[] {
   }
 }
 
+function parseLabelTypes(raw: unknown): { label: string; typeCode: string }[] {
+  if (typeof raw !== "string" || !raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter(
+      (entry): entry is { label: string; typeCode: string } =>
+        typeof entry?.label === "string" && typeof entry?.typeCode === "string",
+    );
+  } catch {
+    return [];
+  }
+}
+
 function rowToPlaneProjectMapping(row: Record<string, unknown>): PlaneProjectMapping {
   return {
     id: row.id as string,
     area_id: row.area_id as string,
     plane_project_id: row.plane_project_id as string,
     plane_project_name: (row.plane_project_name as string) ?? null,
-    import_label: (row.import_label as string) ?? null,
     auto_type_code: (row.auto_type_code as string) ?? null,
+    label_types: parseLabelTypes(row.label_types),
     title_tag_types: parseTitleTagTypes(row.title_tag_types),
     active: toBool(row.active),
     created_at: row.created_at as string,
@@ -554,25 +571,26 @@ export function upsertPlaneProjectMapping(input: {
   areaId: string;
   planeProjectId: string;
   planeProjectName?: string | null;
-  importLabel?: string | null;
   autoTypeCode?: string | null;
+  labelTypes?: { label: string; typeCode: string }[];
   titleTagTypes?: { tag: string; typeCode: string }[];
 }): PlaneProjectMapping {
   const existing = getPlaneProjectMappingByArea(input.areaId);
   const now = new Date().toISOString();
-  const importLabel = input.importLabel?.trim() || null;
   const autoTypeCode = input.autoTypeCode?.trim() || null;
+  const labelTypes = input.labelTypes ?? [];
+  const labelTypesJson = labelTypes.length ? JSON.stringify(labelTypes) : null;
   const titleTagTypes = input.titleTagTypes ?? [];
   const titleTagTypesJson = titleTagTypes.length ? JSON.stringify(titleTagTypes) : null;
 
   if (existing) {
     db.prepare(
-      "UPDATE plane_project_mappings SET plane_project_id = ?, plane_project_name = ?, import_label = ?, auto_type_code = ?, title_tag_types = ?, active = 1, updated_at = ? WHERE id = ?",
+      "UPDATE plane_project_mappings SET plane_project_id = ?, plane_project_name = ?, auto_type_code = ?, label_types = ?, title_tag_types = ?, active = 1, updated_at = ? WHERE id = ?",
     ).run(
       input.planeProjectId,
       input.planeProjectName ?? null,
-      importLabel,
       autoTypeCode,
+      labelTypesJson,
       titleTagTypesJson,
       now,
       existing.id,
@@ -581,8 +599,8 @@ export function upsertPlaneProjectMapping(input: {
       ...existing,
       plane_project_id: input.planeProjectId,
       plane_project_name: input.planeProjectName ?? null,
-      import_label: importLabel,
       auto_type_code: autoTypeCode,
+      label_types: labelTypes,
       title_tag_types: titleTagTypes,
       active: true,
       updated_at: now,
@@ -591,14 +609,14 @@ export function upsertPlaneProjectMapping(input: {
 
   const id = randomUUID();
   db.prepare(
-    "INSERT INTO plane_project_mappings (id, area_id, plane_project_id, plane_project_name, import_label, auto_type_code, title_tag_types, active, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?)",
+    "INSERT INTO plane_project_mappings (id, area_id, plane_project_id, plane_project_name, auto_type_code, label_types, title_tag_types, active, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?)",
   ).run(
     id,
     input.areaId,
     input.planeProjectId,
     input.planeProjectName ?? null,
-    importLabel,
     autoTypeCode,
+    labelTypesJson,
     titleTagTypesJson,
     now,
     now,
@@ -608,8 +626,8 @@ export function upsertPlaneProjectMapping(input: {
     area_id: input.areaId,
     plane_project_id: input.planeProjectId,
     plane_project_name: input.planeProjectName ?? null,
-    import_label: importLabel,
     auto_type_code: autoTypeCode,
+    label_types: labelTypes,
     title_tag_types: titleTagTypes,
     active: true,
     created_at: now,

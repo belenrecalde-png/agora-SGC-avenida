@@ -62,14 +62,14 @@ export default async function TicketsPlanePage() {
             {projects.map((p) => p.name).join(", ")}
           </Badge>
         )}
-        {configured && projects.some((p) => p.importLabel) && (
+        {configured && projects.some((p) => p.labels.length > 0) && (
           <p className="text-xs text-muted">
             Filtrado por etiqueta:{" "}
             {projects
-              .filter((p) => p.importLabel)
-              .map((p) => `${p.name} → "${p.importLabel}"`)
+              .filter((p) => p.labels.length > 0)
+              .map((p) => `${p.name} → ${p.labels.map((l) => `"${l}"`).join(" / ")}`)
               .join(" · ")}
-            . Los proyectos sin etiqueta muestran todos sus tickets. Se puede ajustar en{" "}
+            . Los proyectos sin etiqueta (ni tag de título) muestran todos sus tickets. Se puede ajustar en{" "}
             <Link href="/configuracion/plane" className="text-avenida-violet hover:underline">
               Configuración → Plane
             </Link>

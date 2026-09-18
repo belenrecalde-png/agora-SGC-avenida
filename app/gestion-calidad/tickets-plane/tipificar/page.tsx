@@ -92,7 +92,7 @@ export default async function TipificarTicketPage({
     redirect("/gestion-calidad/tickets-plane");
   }
   const validTypeCodes = new Set(types.map((t) => t.code));
-  const suggestedType = resolveSuggestedTypeCode(ticket.name, mapping, validTypeCodes) ?? types[0]?.code;
+  const suggestedType = (await resolveSuggestedTypeCode(projectId, ticket, mapping, validTypeCodes)) ?? types[0]?.code;
   const suggestedAreaId = mapping?.area_id && areas.some((a) => a.id === mapping.area_id) ? mapping.area_id : "";
 
   return (

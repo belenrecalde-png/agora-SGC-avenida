@@ -57,29 +57,42 @@ export type TicketPlaneRow = {
 };
 
 /**
- * Sugiere el tipo SGC para un ticket a partir de los tags configurados en el
- * mapeo del proyecto (`title_tag_types`, ej. "[Bug]" → NC): el primer tag que
- * aparezca en el título (sin distinguir mayúsculas) gana. Si ninguno matchea,
- * cae a `auto_type_code` (sugerencia fija por proyecto, como antes). Ambas
- * fuentes se validan contra los tipos activos por si se borró/desactivó uno.
+ * Sugiere el tipo SGC para un ticket, en orden de prioridad: 1) un tag en el
+ * título (`title_tag_types`, ej. "[Bug]" → NC), 2) una etiqueta real de Plane
+ * que tenga cargada (`label_types`, ej. "Mejora" → OM), 3) `auto_type_code`
+ * (sugerencia fija por proyecto, sin importar el contenido del ticket). El
+ * tag de título siempre gana si matchea, aunque el ticket también tenga
+ * alguna de las etiquetas configuradas. Todas las fuentes se validan contra
+ * los tipos activos por si se borró/desactivó alguno.
  */
-export function resolveSuggestedTypeCode(
-  title: string,
-  mapping: { auto_type_code: string | null; title_tag_types: { tag: string; typeCode: string }[] } | undefined,
+export async function resolveSuggestedTypeCode(
+  projectId: string,
+  ticket: PlaneWorkItem,
+  mapping:
+    | { auto_type_code: string | null; label_types: { label: string; typeCode: string }[]; title_tag_types: { tag: string; typeCode: string }[] }
+    | undefined,
   validTypeCodes: Set<string>,
-): string | undefined {
+): Promise<string | undefined> {
   if (!mapping) return undefined;
-  const lowerTitle = title.toLowerCase();
+
+  const lowerTitle = ticket.name.toLowerCase();
   const byTag = mapping.title_tag_types.find(
     (entry) => validTypeCodes.has(entry.typeCode) && lowerTitle.includes(entry.tag.toLowerCase()),
   );
   if (byTag) return byTag.typeCode;
+
+  for (const entry of mapping.label_types) {
+    if (!validTypeCodes.has(entry.typeCode)) continue;
+    const labelId = await resolveLabelId(projectId, entry.label);
+    if (labelId && workItemHasLabel(ticket, labelId)) return entry.typeCode;
+  }
+
   return mapping.auto_type_code && validTypeCodes.has(mapping.auto_type_code) ? mapping.auto_type_code : undefined;
 }
 
 export type TicketsPlaneResult = {
   configured: boolean;
-  projects: { id: string; name: string; importLabel: string | null }[];
+  projects: { id: string; name: string; labels: string[] }[];
   rows: TicketPlaneRow[];
   /** Un mensaje de error por proyecto que falló al listar (no rompe el resto). */
   projectErrors: { projectId: string; projectName: string; message: string }[];
@@ -142,19 +155,20 @@ async function rowFromWorkItem(
  * para un proyecto con muchos tickets, esta primera versión solo muestra
  * los primeros que devuelva Plane.
  *
- * Si el mapeo tiene `import_label` cargado, se filtran los work items del
- * proyecto a solo los que tengan esa etiqueta en Plane — así el proyecto
- * entero no queda "pendiente de tipificar" ticket por ticket, solo lo que se
- * marcó explícitamente como relevante para el SGC. Sin etiqueta, se listan
- * todos los work items del proyecto (comportamiento original de la Fase 6).
+ * Si el mapeo tiene `label_types` cargado, se filtran los work items del
+ * proyecto a solo los que tengan alguna de esas etiquetas en Plane — así el
+ * proyecto entero no queda "pendiente de tipificar" ticket por ticket, solo
+ * lo que se marcó explícitamente como relevante para el SGC. Sin etiquetas
+ * ni tags de título, se listan todos los work items del proyecto
+ * (comportamiento original de la Fase 6).
  *
  * Si además (o en vez de eso) el mapeo tiene `title_tag_types` cargado, se
  * suma otro criterio de entrada: los work items cuyo título contenga alguno
  * de esos tags (ej. "[Bug]", "[Mejora]") también entran como pendientes — el
  * mismo criterio que ya se usa para sugerir el tipo al tipificar
  * (`resolveSuggestedTypeCode`), pero acá decide qué aparece en vez de qué
- * tipo pre-cargar. Si el mapeo tiene los dos filtros cargados, es un OR: con
- * cumplir cualquiera de los dos alcanza, no hace falta cumplir ambos.
+ * tipo pre-cargar. Si el mapeo tiene los dos cargados, es un OR: con cumplir
+ * cualquiera de los dos alcanza, no hace falta cumplir ambos.
  *
  * `onlyAreaId` (autorización fina por rol): si se pasa, solo se consultan
  * los proyectos mapeados a esa área — un Responsable de Área no debe ver
@@ -169,7 +183,7 @@ export async function listTicketsPlaneRows(onlyAreaId?: string | null): Promise<
   const projects = mappings.map((m) => ({
     id: m.plane_project_id,
     name: m.plane_project_name ?? m.plane_project_id,
-    importLabel: m.import_label,
+    labels: m.label_types.map((entry) => entry.label),
   }));
 
   if (!configured || projects.length === 0) {
@@ -186,36 +200,38 @@ export async function listTicketsPlaneRows(onlyAreaId?: string | null): Promise<
     try {
       const { results } = await listWorkItems(projectId);
 
-      const labelRequested = Boolean(mapping.import_label);
-      let labelId: string | null = null;
-      if (labelRequested) {
-        labelId = await resolveLabelId(projectId, mapping.import_label!);
-        if (!labelId) {
-          const tagFallbackNote = mapping.title_tag_types.length
-            ? " Se siguen trayendo los tickets que matcheen por tag de título, si hay alguno cargado."
-            : "";
-          projectErrors.push({
-            projectId,
-            projectName,
-            message: `No se encontró la etiqueta "${mapping.import_label}" en este proyecto de Plane — revisar el nombre exacto en Configuración → Plane.${tagFallbackNote}`,
-          });
-        }
+      const labelRequested = mapping.label_types.length > 0;
+      const labelIds: string[] = [];
+      const labelsNotFound: string[] = [];
+      for (const entry of mapping.label_types) {
+        const labelId = await resolveLabelId(projectId, entry.label);
+        if (labelId) labelIds.push(labelId);
+        else labelsNotFound.push(entry.label);
+      }
+      if (labelsNotFound.length > 0) {
+        const tagFallbackNote = mapping.title_tag_types.length
+          ? " Se siguen trayendo los tickets que matcheen por tag de título o por alguna otra etiqueta cargada."
+          : "";
+        projectErrors.push({
+          projectId,
+          projectName,
+          message: `No se ${labelsNotFound.length === 1 ? "encontró la etiqueta" : "encontraron las etiquetas"} ${labelsNotFound.map((l) => `"${l}"`).join(", ")} en este proyecto de Plane — revisar el nombre exacto en Configuración → Plane.${tagFallbackNote}`,
+        });
       }
 
       const tags = mapping.title_tag_types.map((entry) => entry.tag.toLowerCase());
       const hasTagFilter = tags.length > 0;
 
       // OR, no AND: si el proyecto tiene los dos filtros cargados, alcanza con
-      // cumplir cualquiera de los dos (la etiqueta de Plane, o algún tag en el
-      // título) para entrar como pendiente — no hace falta cumplir ambos. Si se
-      // pidió una etiqueta que no se encontró en Plane, esa parte del OR queda
-      // en `false` para todos los tickets (no aporta matches) pero el filtro
-      // por tag sigue funcionando igual — antes esto abortaba el proyecto
-      // entero con un `continue`, tapando también los matches por tag.
+      // cumplir cualquiera de los dos (alguna etiqueta de Plane, o algún tag
+      // en el título) para entrar como pendiente — no hace falta cumplir
+      // ambos. Una etiqueta que no se encontró en Plane simplemente no suma
+      // ningún id a `labelIds` (no aporta matches), pero el resto de las
+      // etiquetas y el filtro por tag siguen funcionando igual.
       let items = results;
       if (labelRequested || hasTagFilter) {
         items = items.filter((item) => {
-          const matchesLabel = labelId !== null && workItemHasLabel(item, labelId);
+          const matchesLabel = labelIds.some((labelId) => workItemHasLabel(item, labelId));
           const matchesTag = hasTagFilter && tags.some((tag) => item.name.toLowerCase().includes(tag));
           return matchesLabel || matchesTag;
         });
