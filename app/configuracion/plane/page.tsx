@@ -1,7 +1,8 @@
+import Link from "next/link";
 import { Plug } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Badge, type BadgeTone } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Button, LinkButton } from "@/components/ui/button";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { listAreas, listPlaneProjectMappings, listPlaneSyncLogs, listRecordTypes } from "@/lib/db/queries";
 import { getPlaneConfigStatus } from "@/lib/plane/client";
@@ -35,7 +36,12 @@ function statusLabel(status: string): string {
   return "Salteado";
 }
 
-export default function PlanePage() {
+export default async function PlanePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ edit?: string }>;
+}) {
+  const { edit } = await searchParams;
   const areas = listAreas();
   const mappings = listPlaneProjectMappings();
   const types = listRecordTypes({ onlyActive: true });
@@ -44,6 +50,10 @@ export default function PlanePage() {
 
   const mappingByArea = new Map(mappings.map((m) => [m.area_id, m]));
   const unmappedAreas = areas.filter((area) => !mappingByArea.has(area.id));
+  const editingMapping = edit ? mappings.find((m) => m.id === edit) : undefined;
+  const titleTagTypesDefault = editingMapping
+    ? editingMapping.title_tag_types.map((entry) => `${entry.tag}=${entry.typeCode}`).join("\n")
+    : "";
 
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-6 pb-12">
@@ -144,6 +154,9 @@ export default function PlanePage() {
                     </div>
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
+                    <LinkButton href={`/configuracion/plane?edit=${mapping.id}#mapear-area`} variant="secondary" size="sm">
+                      Editar
+                    </LinkButton>
                     <form action={testPlaneConnectionAction}>
                       <input type="hidden" name="planeProjectId" value={mapping.plane_project_id} />
                       <Button type="submit" variant="secondary" size="sm">
@@ -170,15 +183,26 @@ export default function PlanePage() {
         )}
       </Card>
 
-      <Card className="flex flex-col gap-3 p-5">
-        <p className="text-sm font-semibold text-avenida-black">Mapear un área</p>
+      <Card id="mapear-area" className="flex flex-col gap-3 p-5">
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-sm font-semibold text-avenida-black">
+            {editingMapping ? `Editar mapeo — ${areas.find((a) => a.id === editingMapping.area_id)?.name ?? editingMapping.area_id}` : "Mapear un área"}
+          </p>
+          {editingMapping && (
+            <Link href="/configuracion/plane" className="text-xs font-medium text-avenida-violet hover:underline">
+              Cancelar edición
+            </Link>
+          )}
+        </div>
         <form action={upsertPlaneMappingAction} className="flex flex-col gap-3">
           <div className="flex flex-col gap-3 sm:flex-row">
+            {editingMapping && <input type="hidden" name="areaId" value={editingMapping.area_id} />}
             <select
-              name="areaId"
+              name={editingMapping ? undefined : "areaId"}
               required
-              defaultValue=""
-              className="h-10 flex-1 rounded-xl border border-border bg-white px-3 text-sm text-avenida-black focus:border-avenida-violet focus:outline-none focus:ring-2 focus:ring-avenida-violet/20"
+              defaultValue={editingMapping?.area_id ?? ""}
+              disabled={Boolean(editingMapping)}
+              className="h-10 flex-1 rounded-xl border border-border bg-white px-3 text-sm text-avenida-black focus:border-avenida-violet focus:outline-none focus:ring-2 focus:ring-avenida-violet/20 disabled:bg-avenida-gray/20 disabled:text-muted"
             >
               <option value="" disabled>
                 Elegir área
@@ -191,22 +215,31 @@ export default function PlanePage() {
               ))}
             </select>
           </div>
+          {editingMapping && (
+            <p className="text-xs text-muted">
+              El área no se puede cambiar editando un mapeo existente — si hace falta moverlo a otra área,
+              eliminá este mapeo y creá uno nuevo.
+            </p>
+          )}
           <input
             name="planeProjectId"
             type="text"
             required
+            defaultValue={editingMapping?.plane_project_id ?? ""}
             placeholder="ID de proyecto de Plane (UUID)"
             className="h-10 rounded-xl border border-border bg-white px-3 text-sm text-avenida-black placeholder:text-muted focus:border-avenida-violet focus:outline-none focus:ring-2 focus:ring-avenida-violet/20"
           />
           <input
             name="planeProjectName"
             type="text"
+            defaultValue={editingMapping?.plane_project_name ?? ""}
             placeholder="Nombre del proyecto en Plane (opcional, solo para mostrar acá)"
             className="h-10 rounded-xl border border-border bg-white px-3 text-sm text-avenida-black placeholder:text-muted focus:border-avenida-violet focus:outline-none focus:ring-2 focus:ring-avenida-violet/20"
           />
           <input
             name="importLabel"
             type="text"
+            defaultValue={editingMapping?.import_label ?? ""}
             placeholder='Etiqueta de Plane para traer tickets (opcional, ej. "SGC")'
             className="h-10 rounded-xl border border-border bg-white px-3 text-sm text-avenida-black placeholder:text-muted focus:border-avenida-violet focus:outline-none focus:ring-2 focus:ring-avenida-violet/20"
           />
@@ -223,7 +256,7 @@ export default function PlanePage() {
             <select
               id="autoTypeCode"
               name="autoTypeCode"
-              defaultValue=""
+              defaultValue={editingMapping?.auto_type_code ?? ""}
               className="h-10 rounded-xl border border-border bg-white px-3 text-sm text-avenida-black focus:border-avenida-violet focus:outline-none focus:ring-2 focus:ring-avenida-violet/20"
             >
               <option value="">Sin sugerencia — elegir a mano cada vez</option>
@@ -246,6 +279,7 @@ export default function PlanePage() {
               id="titleTagTypes"
               name="titleTagTypes"
               rows={3}
+              defaultValue={titleTagTypesDefault}
               placeholder={"[Bug]=NC\n[Mejora]=OM"}
               className="rounded-xl border border-border bg-white px-3 py-2 text-sm text-avenida-black placeholder:text-muted focus:border-avenida-violet focus:outline-none focus:ring-2 focus:ring-avenida-violet/20"
             />
@@ -260,7 +294,7 @@ export default function PlanePage() {
             </p>
           </div>
           <SubmitButton className="self-start" pendingText="Guardando…">
-            Guardar mapeo
+            {editingMapping ? "Guardar cambios" : "Guardar mapeo"}
           </SubmitButton>
         </form>
         {unmappedAreas.length > 0 && (

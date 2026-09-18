@@ -186,17 +186,19 @@ export async function listTicketsPlaneRows(onlyAreaId?: string | null): Promise<
     try {
       const { results } = await listWorkItems(projectId);
 
-      let items = results;
+      const labelRequested = Boolean(mapping.import_label);
       let labelId: string | null = null;
-      if (mapping.import_label) {
-        labelId = await resolveLabelId(projectId, mapping.import_label);
+      if (labelRequested) {
+        labelId = await resolveLabelId(projectId, mapping.import_label!);
         if (!labelId) {
+          const tagFallbackNote = mapping.title_tag_types.length
+            ? " Se siguen trayendo los tickets que matcheen por tag de título, si hay alguno cargado."
+            : "";
           projectErrors.push({
             projectId,
             projectName,
-            message: `No se encontró la etiqueta "${mapping.import_label}" en este proyecto de Plane — revisar el nombre exacto en Configuración → Plane.`,
+            message: `No se encontró la etiqueta "${mapping.import_label}" en este proyecto de Plane — revisar el nombre exacto en Configuración → Plane.${tagFallbackNote}`,
           });
-          continue;
         }
       }
 
@@ -205,8 +207,13 @@ export async function listTicketsPlaneRows(onlyAreaId?: string | null): Promise<
 
       // OR, no AND: si el proyecto tiene los dos filtros cargados, alcanza con
       // cumplir cualquiera de los dos (la etiqueta de Plane, o algún tag en el
-      // título) para entrar como pendiente — no hace falta cumplir ambos.
-      if (labelId !== null || hasTagFilter) {
+      // título) para entrar como pendiente — no hace falta cumplir ambos. Si se
+      // pidió una etiqueta que no se encontró en Plane, esa parte del OR queda
+      // en `false` para todos los tickets (no aporta matches) pero el filtro
+      // por tag sigue funcionando igual — antes esto abortaba el proyecto
+      // entero con un `continue`, tapando también los matches por tag.
+      let items = results;
+      if (labelRequested || hasTagFilter) {
         items = items.filter((item) => {
           const matchesLabel = labelId !== null && workItemHasLabel(item, labelId);
           const matchesTag = hasTagFilter && tags.some((tag) => item.name.toLowerCase().includes(tag));
