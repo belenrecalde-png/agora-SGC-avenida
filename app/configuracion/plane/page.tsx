@@ -119,10 +119,16 @@ export default function PlanePage() {
                       <code>{mapping.plane_project_id}</code>
                     </p>
                     <div className="flex flex-wrap gap-1.5">
-                      {mapping.import_label ? (
+                      {mapping.import_label && (
                         <Badge tone="violet">Solo etiqueta &ldquo;{mapping.import_label}&rdquo;</Badge>
-                      ) : (
-                        <Badge tone="gray">Sin etiqueta — trae todos los tickets del proyecto</Badge>
+                      )}
+                      {mapping.title_tag_types.length > 0 && (
+                        <Badge tone="violet">
+                          Solo títulos con {mapping.title_tag_types.map((e) => `"${e.tag}"`).join(" / ")}
+                        </Badge>
+                      )}
+                      {!mapping.import_label && mapping.title_tag_types.length === 0 && (
+                        <Badge tone="gray">Sin filtro — trae todos los tickets del proyecto</Badge>
                       )}
                       {mapping.auto_type_code && (
                         <Badge tone="blue">
@@ -207,7 +213,8 @@ export default function PlanePage() {
           <p className="text-xs text-muted">
             Si cargás una etiqueta, en <span className="font-medium">Gestión de Calidad → Tickets Plane</span> solo
             aparecen como pendientes de tipificar los work items de este proyecto que tengan esa etiqueta en Plane
-            (el nombre tiene que ser exacto). Si la dejás vacía, aparecen todos los tickets del proyecto.
+            (el nombre tiene que ser exacto). Si la dejás vacía, aparecen todos los tickets del proyecto — salvo que
+            cargues tags de título más abajo, que funcionan igual pero por texto en el título.
           </p>
           <div className="flex flex-col gap-1.5">
             <label htmlFor="autoTypeCode" className="text-xs font-medium text-avenida-black">
@@ -246,6 +253,10 @@ export default function PlanePage() {
               Un tag por línea, formato <code>tag=CODIGO</code>. Si el título del ticket contiene ese tag
               (sin importar mayúsculas), se sugiere ese tipo al tipificar — gana el primero que matchee. Un
               ticket que no matchea ningún tag usa el &ldquo;Tipo sugerido&rdquo; de arriba, si hay uno cargado.
+              Además, si cargás tags acá, en <span className="font-medium">Tickets Plane</span> aparecen como
+              pendientes los tickets de este proyecto cuyo título contenga alguno de ellos. Si el proyecto
+              también tiene etiqueta de Plane cargada arriba, alcanza con cumplir cualquiera de los dos — no
+              hace falta que el ticket tenga ambas cosas.
             </p>
           </div>
           <SubmitButton className="self-start" pendingText="Guardando…">

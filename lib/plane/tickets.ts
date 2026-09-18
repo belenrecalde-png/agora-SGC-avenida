@@ -148,6 +148,14 @@ async function rowFromWorkItem(
  * marcó explícitamente como relevante para el SGC. Sin etiqueta, se listan
  * todos los work items del proyecto (comportamiento original de la Fase 6).
  *
+ * Si además (o en vez de eso) el mapeo tiene `title_tag_types` cargado, se
+ * suma otro criterio de entrada: los work items cuyo título contenga alguno
+ * de esos tags (ej. "[Bug]", "[Mejora]") también entran como pendientes — el
+ * mismo criterio que ya se usa para sugerir el tipo al tipificar
+ * (`resolveSuggestedTypeCode`), pero acá decide qué aparece en vez de qué
+ * tipo pre-cargar. Si el mapeo tiene los dos filtros cargados, es un OR: con
+ * cumplir cualquiera de los dos alcanza, no hace falta cumplir ambos.
+ *
  * `onlyAreaId` (autorización fina por rol): si se pasa, solo se consultan
  * los proyectos mapeados a esa área — un Responsable de Área no debe ver
  * (ni golpear la API por) tickets de proyectos de otras áreas.
@@ -179,8 +187,9 @@ export async function listTicketsPlaneRows(onlyAreaId?: string | null): Promise<
       const { results } = await listWorkItems(projectId);
 
       let items = results;
+      let labelId: string | null = null;
       if (mapping.import_label) {
-        const labelId = await resolveLabelId(projectId, mapping.import_label);
+        labelId = await resolveLabelId(projectId, mapping.import_label);
         if (!labelId) {
           projectErrors.push({
             projectId,
@@ -189,7 +198,20 @@ export async function listTicketsPlaneRows(onlyAreaId?: string | null): Promise<
           });
           continue;
         }
-        items = results.filter((item) => workItemHasLabel(item, labelId));
+      }
+
+      const tags = mapping.title_tag_types.map((entry) => entry.tag.toLowerCase());
+      const hasTagFilter = tags.length > 0;
+
+      // OR, no AND: si el proyecto tiene los dos filtros cargados, alcanza con
+      // cumplir cualquiera de los dos (la etiqueta de Plane, o algún tag en el
+      // título) para entrar como pendiente — no hace falta cumplir ambos.
+      if (labelId !== null || hasTagFilter) {
+        items = items.filter((item) => {
+          const matchesLabel = labelId !== null && workItemHasLabel(item, labelId);
+          const matchesTag = hasTagFilter && tags.some((tag) => item.name.toLowerCase().includes(tag));
+          return matchesLabel || matchesTag;
+        });
       }
 
       for (const item of items) {
