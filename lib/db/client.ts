@@ -552,23 +552,62 @@ declare global {
   var __agoraDb: DatabaseSync | undefined;
 }
 
+function isSqliteBusyError(error: unknown): boolean {
+  return (
+    error instanceof Error &&
+    "code" in error &&
+    (error as NodeJS.ErrnoException).code === "ERR_SQLITE_ERROR" &&
+    "errcode" in error &&
+    (error as { errcode?: number }).errcode === 5 // SQLITE_BUSY, "database is locked"
+  );
+}
+
+/** Espera sincrónica — no hay `await` disponible en el módulo-evaluación de `createConnection`. */
+function sleepSync(ms: number): void {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+}
+
+/**
+ * Cada intento de conexión abre el archivo, ajusta los PRAGMA y corre
+ * `migrate`/`seed` de punta a punta — si otro proceso agarró el lock
+ * primero, ni `busy_timeout` (que espera adentro de una sola llamada a
+ * `exec`) alcanza a cubrir el tiempo que tarda ESE proceso en terminar toda
+ * su propia migración. Pasa sobre todo el build de producción real después
+ * de sumar una columna nueva (ej. Railway con ~30 workers en paralelo,
+ * cada uno corriendo `ALTER TABLE` contra el mismo archivo a la vez) — ver
+ * la nota de abajo, ya había pasado antes con el cambio a WAL solo. Acá se
+ * reintenta el proceso completo (no solo el PRAGMA que falló) unas pocas
+ * veces más, cerrando el handle fallido antes de reabrir.
+ */
 function createConnection(): DatabaseSync {
   if (!fs.existsSync(DB_DIR)) fs.mkdirSync(DB_DIR, { recursive: true });
-  const database = new DatabaseSync(DB_PATH);
-  // `busy_timeout` va PRIMERO, antes de cualquier otro PRAGMA/consulta — si
-  // no, el propio cambio a modo WAL de la línea siguiente puede chocar con
-  // otro proceso que tiene el lock, sin tener todavía ninguna espera
-  // configurada, y tirar "database is locked" antes de llegar a la línea que
-  // la establece (pasó exactamente así en el primer intento de deploy). En
-  // un build de producción real (ej. Railway) Next.js evalúa decenas de
-  // páginas en paralelo, y la primera vez que corre, cada worker es un
-  // proceso aparte que puede intentar crear/migrar/sembrar el archivo al
-  // mismo tiempo — localmente casi no se nota porque el archivo ya existe.
-  database.exec("PRAGMA busy_timeout = 30000;");
-  database.exec("PRAGMA journal_mode = WAL;");
-  migrate(database);
-  seed(database);
-  return database;
+
+  const maxAttempts = 5;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    const database = new DatabaseSync(DB_PATH);
+    try {
+      // `busy_timeout` va PRIMERO, antes de cualquier otro PRAGMA/consulta —
+      // si no, el propio cambio a modo WAL de la línea siguiente puede
+      // chocar con otro proceso que tiene el lock, sin tener todavía
+      // ninguna espera configurada, y tirar "database is locked" antes de
+      // llegar a la línea que la establece (pasó exactamente así en el
+      // primer intento de deploy). En un build de producción real (ej.
+      // Railway) Next.js evalúa decenas de páginas en paralelo, y la
+      // primera vez que corre, cada worker es un proceso aparte que puede
+      // intentar crear/migrar/sembrar el archivo al mismo tiempo —
+      // localmente casi no se nota porque el archivo ya existe.
+      database.exec("PRAGMA busy_timeout = 30000;");
+      database.exec("PRAGMA journal_mode = WAL;");
+      migrate(database);
+      seed(database);
+      return database;
+    } catch (error) {
+      database.close();
+      if (!isSqliteBusyError(error) || attempt === maxAttempts) throw error;
+      sleepSync(1000 * attempt);
+    }
+  }
+  throw new Error("No se pudo abrir la base de datos tras varios reintentos (unreachable).");
 }
 
 // En dev, Next.js recarga módulos frecuentemente (HMR) — cachear en `global` evita
